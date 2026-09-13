@@ -21,12 +21,13 @@ _No response_
 ### Maintainer notes
 
 This plugin installs a commit-pinned howdy-next backend, checksum-pinned ONNX
-models, and root-owned PAM,
-sudo approval, polkit, and recovery components. It requires manual setup and
-review. Sudo face evidence is bound to one process and one final command; the
-approval overlay displays the resolved executable and arguments before sudo
-continues. Screen unlock is immediate after a successful face scan. Password
-fallback remains available.
+models, and root-owned PAM, sudo approval, and recovery components. Its polkit
+policy gates only the password-protected profile and settings manager; it does
+not add face authentication to general polkit requests or 1Password. The plugin
+requires manual setup and review. Sudo face evidence is bound to one process and
+one final command; the approval overlay displays the resolved executable and
+arguments before sudo continues. Screen unlock is immediate after a successful
+face scan. Password fallback remains available.
 
 Privileged installer inputs are copied to a private root-owned staging directory
 and validated before execution. The lock clone has a recorded upstream hash,

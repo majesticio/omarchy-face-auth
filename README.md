@@ -6,10 +6,16 @@ resolved executable, every argument, target account, terminal, and working
 directory. **Allow once** is selected by default; Deny, rescan, and password
 fallback remain available.
 
+![Face-verified sudo approval showing the exact command](preview.png)
+
 The bar widget opens a password-protected manager for enrolling, removing, or
 clearing profiles and for enabling face authentication separately for screen
 unlock and sudo. Preferences and profiles persist across reboots. Display-manager
 login and disk unlock are outside this release.
+
+The installed polkit policy only authorizes the password-protected profile and
+settings manager. This release does not add face authentication to general
+polkit requests or applications such as 1Password.
 
 ## Requirements
 
