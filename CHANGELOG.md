@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.2 — 2026-09-13
+
+- Queue face-unlock requests made during the lock transition and begin scanning
+  as soon as the compositor confirms the secure lock surface.
+- Keep the queued scan visible and allow typing or cancellation to clear it.
+
 ## 0.5.1 — 2026-09-13
 
 - Publish a root-owned, nonsecret status summary so the widget remains useful
