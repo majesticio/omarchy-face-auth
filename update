@@ -10,5 +10,5 @@ pacman -Q omarchy-face-auth-howdy-next >/dev/null 2>&1 || {
 }
 ./scripts/build-native
 sudo /usr/lib/omarchy-face-auth/update-launcher "$(id -un)" "$(id -u)" "$PWD"
-omarchy-shell shell rescanPlugins >/dev/null
+omarchy-shell -q shell rescanPlugins
 echo 'Face Authentication was updated. Profiles and preferences were retained.'

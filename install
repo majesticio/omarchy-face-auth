@@ -82,7 +82,7 @@ sudo /usr/bin/chmod 0700 "$stage/scripts/install-system"
 sudo /usr/bin/bash "$stage/scripts/install-system" "$user" "$uid" "$device" "$stage"
 cleanup_stage
 trap - EXIT HUP INT TERM
-omarchy-shell shell rescanPlugins >/dev/null
+omarchy-shell -q shell rescanPlugins
 omarchy plugin enable io.github.majesticio.face-auth --section right
 
 echo 'Face Authentication is installed, enrolled, enabled, and persistent across reboots.'
