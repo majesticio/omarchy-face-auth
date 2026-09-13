@@ -1,0 +1,7 @@
+#%PAM-1.0
+# Face match unlocks the screen immediately; sudo confirmation is separate.
+auth requisite pam_exec.so quiet /usr/lib/omarchy-face-auth/backend.py check-screen
+auth requisite pam_faillock.so preauth silent deny=10 unlock_time=120
+auth requisite pam_howdy.so
+auth required pam_faillock.so authsucc
+account include system-local-login

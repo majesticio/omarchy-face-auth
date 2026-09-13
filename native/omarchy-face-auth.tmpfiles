@@ -1,0 +1,4 @@
+d /run/omarchy-face-auth 0755 root root -
+f /run/omarchy-face-auth/profiles.lock 0644 root root -
+f /run/omarchy-face-auth/approval.lock 0600 root root -
+f /run/omarchy-face-auth/manage.lock 0600 root root -

@@ -1,0 +1,46 @@
+# Pinned recognition backend. PAM policy is installed separately by this plugin.
+pkgname=omarchy-face-auth-howdy
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Pinned Howdy backend for the Omarchy face authentication plugin'
+arch=('x86_64')
+url='https://github.com/boltgolt/howdy'
+license=('MIT')
+depends=('libinih' 'libevdev' 'python' 'python-dlib' 'python-opencv' 'pam')
+makedepends=('meson' 'ninja')
+provides=('howdy')
+conflicts=('howdy' 'howdy-git')
+backup=('etc/howdy/config.ini')
+options=('!debug')
+howdy_commit=d3ab99382f88f043d15f15c1450ab69433892a1c
+source=(
+  "howdy-$howdy_commit.tar.gz::https://github.com/boltgolt/howdy/archive/$howdy_commit.tar.gz"
+  'https://dlib.net/files/dlib_face_recognition_resnet_model_v1.dat.bz2'
+  'https://dlib.net/files/shape_predictor_5_face_landmarks.dat.bz2'
+  'config.ini'
+)
+sha256sums=(
+  'e0b58928c6d1362ea8c630f056261bccb446fe84b507f7b7cceb7c5a55706061'
+  'abb1f61041e434465855ce81c2bd546e830d28bcbed8d27ffbe5bb408b11553a'
+  '6e787bbebf5c9efdb793f6cd1f023230c4413306605f24f299f12869f95aa472'
+  'd5de065492a16bd8a49f88d2f12be93dcb53ed7d22b4fb52bc85dc4270def0e1'
+)
+
+build() {
+  meson setup "howdy-$howdy_commit" build --prefix=/usr --libdir=lib --sysconfdir=/etc \
+    --buildtype=release -Dpy_sources_dir=/usr/lib \
+    -Dwith_polkit=false -Dinstall_pam_config=false
+  meson compile -C build -j 2
+}
+
+package() {
+  meson install -C build --destdir "$pkgdir" \
+    --tags pam_module,py_sources,bin,bash_completion
+  # Omarchy owns the interface; do not install a second authentication UI.
+  rm -f "$pkgdir/usr/bin/howdy-gtk"
+  rm -rf "$pkgdir/usr/lib/howdy-gtk"
+  install -Dm644 config.ini "$pkgdir/etc/howdy/config.ini"
+  install -Dm644 "howdy-$howdy_commit/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 dlib_face_recognition_resnet_model_v1.dat "$pkgdir/usr/share/dlib-data/dlib_face_recognition_resnet_model_v1.dat"
+  install -Dm644 shape_predictor_5_face_landmarks.dat "$pkgdir/usr/share/dlib-data/shape_predictor_5_face_landmarks.dat"
+}

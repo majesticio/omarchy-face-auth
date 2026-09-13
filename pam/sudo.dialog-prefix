@@ -1,0 +1,8 @@
+# Face matches require the command-specific sudo approval plugin.
+auth optional pam_face_intent.so reset
+auth required pam_faillock.so preauth silent deny=10 unlock_time=120
+auth [success=ignore default=4] pam_succeed_if.so quiet rhost !~ ?*
+auth [success=ignore default=3] pam_exec.so quiet /usr/lib/omarchy-face-auth/backend.py check-sudo
+auth [success=1 default=ignore] pam_howdy.so
+auth [default=1] pam_permit.so
+auth sufficient pam_face_intent.so mark

@@ -1,0 +1,52 @@
+#!/usr/bin/python3 -I
+"""List persistent V4L2 capture nodes that expose only greyscale formats."""
+import glob
+import os
+from pathlib import Path
+import re
+import stat
+import subprocess
+
+FORMAT = re.compile(r"\[\d+\]:\s+'([^']{4})'")
+GREYSCALE = re.compile(r'(?:GREY|Y(?:8|10|12|14|16)(?:I|P|B|L)?)')
+
+
+def formats(output):
+    return [match.strip() for match in FORMAT.findall(output)]
+
+
+def greyscale_only(output):
+    values = formats(output)
+    return bool(values) and all(GREYSCALE.fullmatch(value) for value in values)
+
+
+def persistent_path(node):
+    resolved = os.path.realpath(node)
+    candidates = []
+    for link in glob.glob('/dev/v4l/by-path/*'):
+        if os.path.realpath(link) == resolved:
+            candidates.append(link)
+    candidates.sort(key=lambda value: ('-usbv2-' in value, value))
+    return candidates[0] if candidates else node
+
+
+def main():
+    found = []
+    for name in sorted(glob.glob('/dev/video*')):
+        try:
+            if not stat.S_ISCHR(Path(name).stat().st_mode):
+                continue
+            result = subprocess.run(['/usr/bin/v4l2-ctl', '--device', name, '--list-formats-ext'],
+                                    text=True, capture_output=True, timeout=3, check=False)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if result.returncode == 0 and greyscale_only(result.stdout):
+            candidate = persistent_path(name)
+            if candidate not in found:
+                found.append(candidate)
+    print('\n'.join(found))
+    return 0 if found else 1
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

@@ -1,0 +1,147 @@
+#!/bin/bash
+set -euo pipefail
+[[ $EUID == 0 ]] || { echo 'This fixed installer requires root.' >&2; exit 1; }
+[[ $# == 4 ]] || { echo 'Invalid installer invocation.' >&2; exit 1; }
+
+user=$1 uid=$2 device=$3 source_root=$4
+[[ $uid =~ ^[1-9][0-9]*$ ]] || exit 1
+account=$(getent passwd "$user")
+[[ -n $account && $(cut -d: -f3 <<<"$account") == "$uid" ]] || { echo 'Account identity mismatch.' >&2; exit 1; }
+gid=$(cut -d: -f4 <<<"$account")
+[[ $source_root == /* && -d $source_root && ! -L $source_root ]] || exit 1
+[[ $device == /dev/* && -e $device ]] || { echo 'The selected IR camera is unavailable.' >&2; exit 1; }
+resolved_device=$(readlink -f -- "$device")
+[[ -c $resolved_device ]] || { echo 'The selected IR camera is not a video device.' >&2; exit 1; }
+[[ ! -e /etc/omarchy-face-auth/installation.json ]] || { echo 'Already installed.' >&2; exit 1; }
+for target in /etc/omarchy-face-auth /etc/pam.d/omarchy-lock-face \
+  /etc/pam.d/omarchy-face-password /etc/pam.d/omarchy-face-rescan \
+  /etc/sudoers.d/90-omarchy-face-auth /usr/lib/omarchy-face-auth \
+  /usr/lib/security/pam_face_intent.so /usr/lib/tmpfiles.d/omarchy-face-auth.conf \
+  /usr/share/polkit-1/actions/io.github.majesticio.face-auth.policy; do
+  [[ ! -e $target && ! -L $target ]] || { echo "Existing installation artifact: $target" >&2; exit 1; }
+done
+for required in native/backend.py native/dialog.py native/io.github.majesticio.face-auth.policy \
+  native/omarchy-face-auth.tmpfiles pam/omarchy-face-password pam/omarchy-face-rescan \
+  pam/omarchy-lock-face pam/sudo.dialog-prefix scripts/configure.py scripts/update-system \
+  scripts/uninstall-system build/pam_face_intent.so; do
+  [[ -f $source_root/$required && ! -L $source_root/$required ]] || { echo "Missing source: $required" >&2; exit 1; }
+done
+[[ -x /usr/bin/howdy && -f /etc/howdy/config.ini ]] || { echo 'The pinned Howdy package is not installed.' >&2; exit 1; }
+for trusted in /etc/pam.d/sudo /etc/howdy/config.ini; do
+  [[ -f $trusted && ! -L $trusted && $(stat -c %u "$trusted") == 0 ]] || {
+    echo "Refusing untrusted system file: $trusted" >&2; exit 1;
+  }
+  mode=$(stat -c %a "$trusted")
+  (( (8#$mode & 8#022) == 0 )) || { echo "Writable system file: $trusted" >&2; exit 1; }
+done
+if [[ -e /etc/sudo.conf ]]; then
+  [[ -f /etc/sudo.conf && ! -L /etc/sudo.conf && $(stat -c %u /etc/sudo.conf) == 0 ]] || {
+    echo 'Refusing untrusted /etc/sudo.conf.' >&2; exit 1;
+  }
+  mode=$(stat -c %a /etc/sudo.conf)
+  (( (8#$mode & 8#022) == 0 )) || { echo 'Writable /etc/sudo.conf.' >&2; exit 1; }
+fi
+
+install -d -o root -g root -m 0700 /var/lib/omarchy-face-auth
+recovery=$(mktemp -d /var/lib/omarchy-face-auth/install.XXXXXXXX)
+chmod 0700 "$recovery"
+backup() {
+  local path=$1 name=$2
+  if [[ -e $path && ! -L $path ]]; then cp -a -- "$path" "$recovery/$name"; touch "$recovery/$name.existed"; fi
+}
+restore() {
+  local path=$1 name=$2 mode=$3
+  if [[ -e $recovery/$name.existed ]]; then
+    install -o root -g root -m "$mode" "$recovery/$name" "$path"
+  else
+    rm -f -- "$path"
+  fi
+}
+backup /etc/pam.d/sudo sudo
+backup /etc/sudo.conf sudo.conf
+backup /etc/pam.d/omarchy-lock-face omarchy-lock-face
+backup /etc/pam.d/omarchy-face-password omarchy-face-password
+backup /etc/pam.d/omarchy-face-rescan omarchy-face-rescan
+backup /etc/howdy/config.ini howdy.ini
+backup /etc/sudoers.d/90-omarchy-face-auth sudoers
+[[ -e $recovery/sudo.conf ]] || : > "$recovery/sudo.conf"
+
+committed=0
+rollback() {
+  if (( ! committed )); then
+    restore /etc/pam.d/sudo sudo 0644
+    restore /etc/sudo.conf sudo.conf 0644
+    restore /etc/pam.d/omarchy-lock-face omarchy-lock-face 0644
+    restore /etc/pam.d/omarchy-face-password omarchy-face-password 0644
+    restore /etc/pam.d/omarchy-face-rescan omarchy-face-rescan 0644
+    restore /etc/howdy/config.ini howdy.ini 0644
+    restore /etc/sudoers.d/90-omarchy-face-auth sudoers 0440
+    rm -rf /etc/omarchy-face-auth /usr/lib/omarchy-face-auth
+    rm -f /usr/lib/security/pam_face_intent.so /usr/share/polkit-1/actions/io.github.majesticio.face-auth.policy \
+      /usr/lib/tmpfiles.d/omarchy-face-auth.conf
+    systemd-tmpfiles --remove "$source_root/native/omarchy-face-auth.tmpfiles" >/dev/null 2>&1 || true
+  fi
+}
+trap rollback EXIT
+trap 'exit 1' HUP INT TERM
+
+install -d -o root -g root -m 0755 /usr/lib/omarchy-face-auth /etc/omarchy-face-auth
+install -o root -g root -m 0755 "$source_root/native/backend.py" /usr/lib/omarchy-face-auth/backend.py
+install -o root -g root -m 0644 "$source_root/native/dialog.py" /usr/lib/omarchy-face-auth/dialog.py
+install -o root -g root -m 0755 "$source_root/scripts/configure.py" /usr/lib/omarchy-face-auth/configure.py
+install -o root -g root -m 0755 "$source_root/scripts/update-system" /usr/lib/omarchy-face-auth/update-system
+install -o root -g root -m 0755 "$source_root/scripts/uninstall-system" /usr/lib/omarchy-face-auth/uninstall-system
+install -o root -g root -m 0755 "$source_root/build/pam_face_intent.so" /usr/lib/security/pam_face_intent.so
+install -o root -g root -m 0644 "$source_root/native/io.github.majesticio.face-auth.policy" \
+  /usr/share/polkit-1/actions/io.github.majesticio.face-auth.policy
+install -o root -g root -m 0644 "$source_root/native/omarchy-face-auth.tmpfiles" /usr/lib/tmpfiles.d/omarchy-face-auth.conf
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/omarchy-face-auth.conf
+
+install -o root -g root -m 0644 "$source_root/pam/omarchy-face-password" /etc/pam.d/omarchy-face-password
+install -o root -g root -m 0644 "$source_root/pam/omarchy-face-rescan" /etc/pam.d/omarchy-face-rescan
+install -o root -g root -m 0644 "$source_root/pam/omarchy-lock-face" /etc/pam.d/omarchy-lock-face
+python3 - "$uid" "$user" > /etc/omarchy-face-auth/installation.json <<'PY'
+import json, sys
+print(json.dumps({'uid': int(sys.argv[1]), 'user': sys.argv[2]}, separators=(',', ':')))
+PY
+printf '{"enabled":false,"screen":true,"sudo":true}\n' > /etc/omarchy-face-auth/settings.json
+chmod 0644 /etc/omarchy-face-auth/*.json
+
+/usr/lib/omarchy-face-auth/configure.py howdy "$recovery/howdy.ini" "$recovery/howdy.new" --device "$device"
+install -o root -g root -m 0644 "$recovery/howdy.new" /etc/howdy/config.ini
+install -d -o root -g "$gid" -m 0750 /etc/howdy/models
+
+echo 'Look toward the IR camera to enroll the initial profile.'
+/usr/bin/howdy -U "$user" -y add Initial
+model=/etc/howdy/models/$user.dat
+[[ -s $model && ! -L $model ]] || { echo 'Enrollment did not create a profile.' >&2; exit 1; }
+chown root:"$gid" "$model"
+chmod 0640 "$model"
+
+/usr/lib/omarchy-face-auth/configure.py sudo-pam "$recovery/sudo" "$recovery/sudo.new" \
+  --block "$source_root/pam/sudo.dialog-prefix"
+/usr/lib/omarchy-face-auth/configure.py sudo-conf "$recovery/sudo.conf" "$recovery/sudo.conf.new"
+printf 'Defaults:%s timestamp_timeout=0\n' "$user" > "$recovery/sudoers.new"
+chmod 0440 "$recovery/sudoers.new"
+visudo -cf "$recovery/sudoers.new"
+install -o root -g root -m 0644 "$recovery/sudo.conf.new" /etc/sudo.conf
+install -o root -g root -m 0440 "$recovery/sudoers.new" /etc/sudoers.d/90-omarchy-face-auth
+install -o root -g root -m 0644 "$recovery/sudo.new" /etc/pam.d/sudo
+visudo -c
+
+python3 - "$user" <<'PY'
+import configparser, json, sys
+from pathlib import Path
+path = Path('/etc/howdy/config.ini')
+cfg = configparser.ConfigParser(); cfg.read(path)
+cfg['core']['disabled'] = 'false'
+with path.open('w') as out: cfg.write(out)
+Path('/etc/omarchy-face-auth/settings.json').write_text(json.dumps(
+    {'enabled': True, 'screen': True, 'sudo': True}, separators=(',', ':')) + '\n')
+PY
+chmod 0644 /etc/howdy/config.ini /etc/omarchy-face-auth/settings.json
+/usr/bin/sudo -n /usr/bin/true
+printf '%s\n' "$recovery" > /var/lib/omarchy-face-auth/active-recovery
+chmod 0600 /var/lib/omarchy-face-auth/active-recovery
+committed=1
+trap - EXIT HUP INT TERM

@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+cd -- "$(dirname -- "$0")/.."
+mkdir -p build
+flags=(-std=c11 -O2 -Wall -Wextra -Werror -fstack-protector-strong -D_FORTIFY_SOURCE=3)
+cc "${flags[@]}" -fPIC -shared -o build/pam_fixture.so tests/pam_fixture.c -lpam
+cc "${flags[@]}" -o build/pam_runner tests/pam_runner.c -lpam
+cc "${flags[@]}" -fPIC -shared -Wl,-z,relro,-z,now,-z,noexecstack -o build/pam_face_intent.so native/intent.c -lpam -ljson-c -lsystemd
+cc "${flags[@]}" -o build/intent_harness tests/intent_harness.c -lpam -ljson-c -lsystemd
+./build/intent_harness
+python3 -m unittest discover -s tests -v
+node tests/face-flow.test.cjs
+stage=$(mktemp -d)
+trap 'rm -rf -- "$stage"' EXIT
+tar --exclude=.git --exclude=build --exclude=vendor --exclude='*/src' --exclude='*/src/*' \
+  --exclude='*/pkg' --exclude='*/pkg/*' --exclude=__pycache__ --exclude=core \
+  -cf - . | tar -xf - -C "$stage"
+omarchy plugin validate "$stage"
+/usr/lib/qt6/bin/qmllint -I /usr/lib/qt6/qml plugin/FaceAuth.qml

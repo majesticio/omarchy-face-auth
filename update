@@ -1,0 +1,9 @@
+#!/bin/bash
+set -euo pipefail
+cd -- "$(dirname -- "$(readlink -f -- "$0")")"
+[[ $EUID != 0 ]] || { echo 'Run this updater as your normal desktop user.' >&2; exit 1; }
+omarchy plugin validate .
+./scripts/build-native
+sudo /usr/bin/bash ./scripts/update-system "$(id -un)" "$(id -u)" "$PWD"
+omarchy-shell shell rescanPlugins >/dev/null
+echo 'Face Authentication was updated. Profiles and preferences were retained.'

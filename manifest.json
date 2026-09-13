@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.majesticio.face-auth",
+  "name": "Face Authentication",
+  "version": "0.4.0",
+  "author": "majesticio",
+  "description": "IR face unlock and command-bound sudo approval with password fallback.",
+  "omarchy": {
+    "clonedFrom": "omarchy.lock"
+  },
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "plugin/Service.qml",
+    "barWidget": "widget/FacePanel.qml"
+  },
+  "barWidget": {
+    "displayName": "Face Authentication",
+    "description": "Manage face profiles and persistent screen/sudo preferences.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

@@ -1,0 +1,14 @@
+Face Authentication for Omarchy
+Copyright (c) 2026 Gabriel Fosse
+
+plugin/Service.qml and plugin/LockView.qml are derived from Omarchy:
+Copyright (c) David Heinemeier Hansson, used under the MIT License.
+https://github.com/omacom/omarchy
+
+The installer builds but does not redistribute these external projects:
+- Howdy, Copyright (c) 2018-2025 Boltgolt, MIT License
+  https://github.com/boltgolt/howdy
+- dlib, Copyright (c) 2002 Davis E. King, Boost Software License 1.0
+  https://github.com/davisking/dlib
+
+The full dependency revisions and hashes are in docs/provenance.md.

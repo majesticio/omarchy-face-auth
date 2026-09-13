@@ -1,0 +1,29 @@
+#!/bin/bash
+set -euo pipefail
+[[ $EUID == 0 && $# == 0 ]] || exit 1
+pointer=/var/lib/omarchy-face-auth/active-recovery
+[[ -f $pointer && ! -L $pointer ]] || { echo 'No installation recovery record was found.' >&2; exit 1; }
+recovery=$(cat "$pointer")
+[[ $recovery == /var/lib/omarchy-face-auth/install.* && -d $recovery && ! -L $recovery ]] || exit 1
+restore() {
+  local path=$1 name=$2 mode=$3
+  if [[ -e $recovery/$name.existed ]]; then
+    install -o root -g root -m "$mode" "$recovery/$name" "$path"
+  else
+    rm -f -- "$path"
+  fi
+}
+restore /etc/pam.d/sudo sudo 0644
+restore /etc/sudo.conf sudo.conf 0644
+restore /etc/pam.d/omarchy-lock-face omarchy-lock-face 0644
+restore /etc/pam.d/omarchy-face-password omarchy-face-password 0644
+restore /etc/pam.d/omarchy-face-rescan omarchy-face-rescan 0644
+restore /etc/howdy/config.ini howdy.ini 0644
+restore /etc/sudoers.d/90-omarchy-face-auth sudoers 0440
+visudo -c
+/usr/bin/sudo -n /usr/bin/true
+systemd-tmpfiles --remove /usr/lib/tmpfiles.d/omarchy-face-auth.conf >/dev/null 2>&1 || true
+rm -f /usr/lib/security/pam_face_intent.so /usr/share/polkit-1/actions/io.github.majesticio.face-auth.policy \
+  /usr/lib/tmpfiles.d/omarchy-face-auth.conf
+rm -rf /usr/lib/omarchy-face-auth /etc/omarchy-face-auth
+rm -f "$pointer"

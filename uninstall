@@ -1,0 +1,11 @@
+#!/bin/bash
+set -euo pipefail
+cd -- "$(dirname -- "$(readlink -f -- "$0")")"
+[[ $EUID != 0 ]] || { echo 'Run this uninstaller as your normal desktop user.' >&2; exit 1; }
+[[ -t 0 && -t 1 ]] || { echo 'Run this uninstaller from an unlocked desktop terminal.' >&2; exit 1; }
+echo 'This restores the PAM and sudo configuration saved during installation.'
+read -r -p 'Type REMOVE to continue: ' answer
+[[ $answer == REMOVE ]] || { echo 'Cancelled.'; exit 1; }
+sudo /usr/lib/omarchy-face-auth/uninstall-system
+echo 'System authentication was restored. The recognition packages and face model were retained.'
+echo 'You can now run: omarchy plugin remove io.github.majesticio.face-auth'

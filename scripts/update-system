@@ -1,0 +1,34 @@
+#!/bin/bash
+set -euo pipefail
+[[ $EUID == 0 && $# == 3 ]] || exit 1
+user=$1 uid=$2 source_root=$3
+python3 - "$user" "$uid" <<'PY'
+import json, pwd, sys
+value=json.load(open('/etc/omarchy-face-auth/installation.json'))
+account=pwd.getpwnam(sys.argv[1])
+assert value == {'uid': int(sys.argv[2]), 'user': sys.argv[1]}
+assert account.pw_uid == value['uid']
+PY
+[[ -f $source_root/build/pam_face_intent.so && ! -L $source_root/build/pam_face_intent.so ]] || exit 1
+recovery=$(mktemp -d /var/lib/omarchy-face-auth/update.XXXXXXXX)
+chmod 0700 "$recovery"
+cp -a /usr/lib/omarchy-face-auth/backend.py "$recovery/backend.py"
+cp -a /usr/lib/omarchy-face-auth/dialog.py "$recovery/dialog.py"
+cp -a /usr/lib/security/pam_face_intent.so "$recovery/pam_face_intent.so"
+committed=0
+rollback() {
+  if (( ! committed )); then
+    install -o root -g root -m 0755 "$recovery/backend.py" /usr/lib/omarchy-face-auth/backend.py
+    install -o root -g root -m 0644 "$recovery/dialog.py" /usr/lib/omarchy-face-auth/dialog.py
+    install -o root -g root -m 0755 "$recovery/pam_face_intent.so" /usr/lib/security/pam_face_intent.so
+  fi
+}
+trap rollback EXIT
+install -o root -g root -m 0755 "$source_root/native/backend.py" /usr/lib/omarchy-face-auth/backend.py
+install -o root -g root -m 0644 "$source_root/native/dialog.py" /usr/lib/omarchy-face-auth/dialog.py
+install -o root -g root -m 0755 "$source_root/build/pam_face_intent.so" /usr/lib/security/pam_face_intent.so
+install -o root -g root -m 0755 "$source_root/scripts/configure.py" /usr/lib/omarchy-face-auth/configure.py
+install -o root -g root -m 0755 "$source_root/scripts/update-system" /usr/lib/omarchy-face-auth/update-system
+install -o root -g root -m 0755 "$source_root/scripts/uninstall-system" /usr/lib/omarchy-face-auth/uninstall-system
+/usr/bin/sudo -n /usr/bin/true
+committed=1

@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+cd -- "$(dirname -- "$0")/.."
+python3 - <<'PY'
+from pathlib import Path
+import shutil
+root=Path('build/ui-smoke')
+root.mkdir(parents=True, exist_ok=True)
+for name in ['Commons', 'Ui']:
+    shutil.copytree(Path('/usr/share/omarchy/shell', name), root/name, dirs_exist_ok=True)
+shutil.copytree('plugin', root/'plugin', dirs_exist_ok=True)
+(root/'shell.qml').write_text('''import QtQuick
+import Quickshell
+import "plugin" as FacePlugin
+Item {
+  width: 1024
+  height: 768
+  FacePlugin.LockView {
+    id: view
+    anchors.fill: parent
+    loadBackground: false
+    inputEnabled: false
+    faceConfigured: true
+  }
+  FacePlugin.FaceAuth { userName: "test-user"; allowed: false }
+  Timer {
+    interval: 600
+    running: true
+    onTriggered: {
+      if (!view.grabToImage(function(result) {
+        if (result.saveToFile(Qt.resolvedUrl("preview.png").toString().replace("file://", ""))) {
+          console.log("FACE_SMOKE_OK")
+          Qt.quit()
+        } else Qt.exit(1)
+      })) Qt.exit(1)
+    }
+  }
+}
+''')
+PY
+mkdir -p build/ui-smoke/runtime build/ui-smoke/cache build/ui-smoke/state
+chmod 700 build/ui-smoke/runtime
+env -u WAYLAND_DISPLAY -u DISPLAY \
+  QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=generic XDG_CURRENT_DESKTOP=generic \
+  QT_QUICK_BACKEND=software XDG_RUNTIME_DIR="$PWD/build/ui-smoke/runtime" \
+  XDG_CACHE_HOME="$PWD/build/ui-smoke/cache" XDG_STATE_HOME="$PWD/build/ui-smoke/state" \
+  timeout 8s quickshell --no-color -p build/ui-smoke/shell.qml > build/ui-smoke/output.log 2>&1
+cat build/ui-smoke/output.log
+rg -q FACE_SMOKE_OK build/ui-smoke/output.log

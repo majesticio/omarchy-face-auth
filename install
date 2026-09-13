@@ -1,0 +1,79 @@
+#!/bin/bash
+set -euo pipefail
+
+cd -- "$(dirname -- "$(readlink -f -- "$0")")"
+[[ $EUID != 0 ]] || { echo 'Run this installer as your normal desktop user.' >&2; exit 1; }
+[[ -t 0 && -t 1 ]] || { echo 'Run this installer in an interactive terminal.' >&2; exit 1; }
+command -v omarchy >/dev/null || { echo 'Omarchy is required.' >&2; exit 1; }
+omarchy plugin validate .
+
+user=$(id -un)
+uid=$(id -u)
+(( uid > 0 )) || { echo 'A regular user account is required.' >&2; exit 1; }
+[[ $(getent passwd "$uid" | cut -d: -f1) == "$user" ]] || { echo 'Could not verify the current account.' >&2; exit 1; }
+
+if sudo test -e /etc/omarchy-face-auth/installation.json; then
+  echo 'Face Authentication is already installed. Use ./update instead.' >&2
+  exit 1
+fi
+if pacman -Qq | rg -q '^howdy($|-)' && ! pacman -Q omarchy-face-auth-howdy >/dev/null 2>&1; then
+  echo 'Another Howdy package is installed. Remove or migrate it before installing this plugin.' >&2
+  exit 1
+fi
+
+echo 'Installing build, camera, and native-dialog dependencies…'
+omarchy pkg add base-devel boost cmake gtk4-layer-shell inih json-c libevdev meson ninja \
+  opencv pam python-gobject python-opencv python-setuptools v4l-utils
+
+mapfile -t cameras < <(./scripts/detect-ir-camera)
+(( ${#cameras[@]} > 0 )) || {
+  echo 'No dedicated greyscale IR video device was found. See docs/compatibility.md.' >&2
+  exit 1
+}
+device=${cameras[0]}
+if (( ${#cameras[@]} > 1 )); then
+  echo 'Choose the IR camera:'
+  select device in "${cameras[@]}"; do [[ -n ${device:-} ]] && break; done
+fi
+echo "IR camera: $device"
+cat <<'EOF'
+Enrollment will briefly use this camera. Close other camera applications first.
+
+The root transaction will add marked blocks to /etc/pam.d/sudo and /etc/sudo.conf,
+install a dedicated screen PAM service, and disable sudo timestamp caching for
+this account. Exact originals are saved for rollback and removal.
+EOF
+read -r -p 'Type INSTALL to build, enroll, and apply these changes: ' answer
+[[ $answer == INSTALL ]] || { echo 'Cancelled.'; exit 1; }
+
+package_cache=${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-face-auth
+mkdir -p "$package_cache"/{build,packages,sources}
+cp /etc/makepkg.conf "$package_cache/makepkg.conf"
+cat >> "$package_cache/makepkg.conf" <<EOF
+BUILDDIR='$package_cache/build'
+PKGDEST='$package_cache/packages'
+SRCDEST='$package_cache/sources'
+LOGDEST='$package_cache'
+EOF
+
+if ! pacman -Q python-dlib >/dev/null 2>&1; then
+  (cd packaging/python-dlib && makepkg --config "$package_cache/makepkg.conf" --cleanbuild --clean --force --noconfirm)
+  dlib_package=$(find "$package_cache/packages" -maxdepth 1 -type f -name 'python-dlib-*.pkg.tar.zst' -print -quit)
+  [[ -n $dlib_package ]] || { echo 'python-dlib package was not produced.' >&2; exit 1; }
+  sudo pacman -U --needed --noconfirm "$dlib_package"
+fi
+
+if ! pacman -Q omarchy-face-auth-howdy >/dev/null 2>&1; then
+  (cd packaging && makepkg --config "$package_cache/makepkg.conf" --cleanbuild --clean --force --noconfirm)
+  howdy_package=$(find "$package_cache/packages" -maxdepth 1 -type f -name 'omarchy-face-auth-howdy-*.pkg.tar.zst' -print -quit)
+  [[ -n $howdy_package ]] || { echo 'Howdy package was not produced.' >&2; exit 1; }
+  sudo pacman -U --needed --noconfirm "$howdy_package"
+fi
+
+./scripts/build-native
+sudo /usr/bin/bash ./scripts/install-system "$user" "$uid" "$device" "$PWD"
+omarchy-shell shell rescanPlugins >/dev/null
+omarchy plugin enable io.github.majesticio.face-auth --section right
+
+echo 'Face Authentication is installed, enrolled, enabled, and persistent across reboots.'
+echo 'Use the face icon in the bar to manage profiles and screen/sudo preferences.'
