@@ -21,3 +21,8 @@ test('cancellation invalidates a late PAM success', () => {
   const state = flow.transition('scanning', 'cancel');
   assert.equal(flow.mayUnlock(state, true, true), false);
 });
+test('a face request waits for the secure lock surface instead of being dropped', () => {
+  assert.equal(flow.scanRequest(true, false), 'queue');
+  assert.equal(flow.scanRequest(true, true), 'start');
+  assert.equal(flow.scanRequest(false, true), 'ignore');
+});

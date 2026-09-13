@@ -9,3 +9,8 @@ function transition(state, event) {
 function mayUnlock(state, success, allowed) {
   return state === "scanning" && success && allowed;
 }
+
+function scanRequest(requestable, secure) {
+  if (!requestable) return "ignore";
+  return secure ? "start" : "queue";
+}

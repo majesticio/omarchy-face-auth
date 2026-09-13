@@ -5,6 +5,7 @@ import Quickshell.Services.Pam
 import Quickshell.Wayland
 import qs.Commons
 import "." as FaceComponents
+import "FaceFlow.js" as FaceFlow
 
 Item {
   id: root
@@ -21,6 +22,7 @@ Item {
   property bool pendingSessionLock: false
   property bool authenticatingPassword: false
   property bool fingerprintAuthenticating: false
+  property bool pendingFaceStart: false
   property bool passwordPamConfigured: false
   property bool fingerprintConfigured: false
   property bool facePamAvailable: false
@@ -40,7 +42,7 @@ Item {
   property bool strandedLockResolved: false
 
   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
-  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating || faceAuth.busy
+  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating || pendingFaceStart || faceAuth.busy
 
   function realScreenCount() {
     var screens = Quickshell.screens || []
@@ -119,6 +121,7 @@ Item {
   }
 
   function resetAuthenticationState() {
+    pendingFaceStart = false
     faceAuth.cancel()
     enteredPassword = ""
     pendingPassword = ""
@@ -187,6 +190,7 @@ Item {
 
     runWake()
     faceAuth.cancel()
+    pendingFaceStart = false
     pendingPassword = password
     failureMessage = ""
     authenticatingPassword = true
@@ -197,6 +201,29 @@ Item {
     }
 
     Qt.callLater(respondToPasswordPrompt)
+  }
+
+  function startFace() {
+    var action = FaceFlow.scanRequest(lockRequested && faceConfigured && !authenticatingPassword,
+                                      sessionLock.secure)
+    if (action === "ignore") return
+
+    failureMessage = ""
+    runWake()
+    if (action === "queue") {
+      // The lock view can become clickable just before the compositor confirms
+      // its secure state. Preserve that click and start as soon as it is safe.
+      pendingFaceStart = true
+      return
+    }
+
+    pendingFaceStart = false
+    faceAuth.start()
+  }
+
+  function cancelFace() {
+    pendingFaceStart = false
+    faceAuth.cancel()
   }
 
   function respondToPasswordPrompt() {
@@ -248,6 +275,7 @@ Item {
         sessionLockStabilizeTimer.stop()
         pendingSessionLockTimer.stop()
         root.startFingerprint()
+        if (root.pendingFaceStart) Qt.callLater(root.startFace)
       }
     }
 
@@ -280,9 +308,9 @@ Item {
         backgroundPath: root.backgroundPath
         backgroundVersion: root.backgroundVersion
         faceConfigured: root.faceConfigured
-        faceBusy: faceAuth.busy
-        onStartFaceRequested: { root.failureMessage = ""; root.runWake(); faceAuth.start() }
-        onCancelFaceRequested: faceAuth.cancel()
+        faceBusy: root.pendingFaceStart || faceAuth.busy
+        onStartFaceRequested: root.startFace()
+        onCancelFaceRequested: root.cancelFace()
         fingerprintConfigured: root.fingerprintConfigured
         authenticatingPassword: root.authenticatingPassword
         failureMessage: root.failureMessage
@@ -290,7 +318,7 @@ Item {
         inputEnabled: root.lockRequested
         loadBackground: root.locked
         passwordText: root.enteredPassword
-        onPasswordTextEdited: function(password) { root.enteredPassword = password; if (password.length > 0) faceAuth.cancel() }
+        onPasswordTextEdited: function(password) { root.enteredPassword = password; if (password.length > 0) root.cancelFace() }
         onSubmitPassword: function(password) { root.submitPassword(password) }
         onClearFailureRequested: root.failureMessage = ""
         onWakeRequested: root.runWake()
