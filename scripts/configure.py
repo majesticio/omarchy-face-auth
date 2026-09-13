@@ -46,6 +46,7 @@ def howdy_config(original, device):
         raise ValueError('unsupported Howdy configuration')
     parser['video']['device_path'] = device
     parser['core']['disabled'] = 'true'
+    parser['core']['no_confirmation'] = 'true'
     output = io.StringIO()
     parser.write(output)
     return output.getvalue()

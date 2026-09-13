@@ -5,10 +5,10 @@ plugin/Service.qml and plugin/LockView.qml are derived from Omarchy:
 Copyright (c) David Heinemeier Hansson, used under the MIT License.
 https://github.com/omacom/omarchy
 
-The installer builds but does not redistribute these external projects:
-- Howdy, Copyright (c) 2018-2025 Boltgolt, MIT License
-  https://github.com/boltgolt/howdy
-- dlib, Copyright (c) 2002 Davis E. King, Boost Software License 1.0
-  https://github.com/davisking/dlib
+The installer builds but does not commit the sources or binaries of:
+- howdy-next, GPL-3.0-or-later
+  https://codeberg.org/nathawat/howdy-next
+- YuNet, OpenCV Zoo, MIT License
+- SFace, OpenCV Zoo, Apache License 2.0
 
 The full dependency revisions and hashes are in docs/provenance.md.

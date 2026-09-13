@@ -1,0 +1,38 @@
+#!/bin/bash
+set -euo pipefail
+
+cd -- "$(dirname -- "$(readlink -f -- "$0")")/.."
+upstream=/usr/share/omarchy/shell/plugins/lock
+[[ $EUID != 0 ]] || { echo 'Run this as your normal development user.' >&2; exit 1; }
+for name in Service.qml LockView.qml; do
+  [[ -f $upstream/$name && ! -L $upstream/$name ]] || {
+    echo "Missing Omarchy lock source: $upstream/$name" >&2; exit 1;
+  }
+done
+
+backup=$(mktemp -d)
+committed=0
+restore() {
+  if (( ! committed )); then
+    cp -- "$backup/Service.qml" plugin/Service.qml
+    cp -- "$backup/LockView.qml" plugin/LockView.qml
+    cp -- "$backup/UPSTREAM_SHA256" patches/UPSTREAM_SHA256
+  fi
+  rm -rf -- "$backup"
+}
+trap restore EXIT
+trap 'exit 1' HUP INT TERM
+cp -- plugin/Service.qml plugin/LockView.qml patches/UPSTREAM_SHA256 "$backup/"
+cp -- "$upstream/Service.qml" plugin/Service.qml
+cp -- "$upstream/LockView.qml" plugin/LockView.qml
+patch -p1 --forward --reject-file=- < patches/face-lock.patch
+
+{
+  sha256sum "$upstream/Service.qml" | sed 's|.*/|  |'
+  sha256sum "$upstream/LockView.qml" | sed 's|.*/|  |'
+} > patches/UPSTREAM_SHA256
+
+omarchy plugin validate .
+./scripts/check
+committed=1
+echo 'Lock clone resynced and validated. Review the diff before committing.'

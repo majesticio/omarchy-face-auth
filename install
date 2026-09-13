@@ -16,14 +16,14 @@ if sudo test -e /etc/omarchy-face-auth/installation.json; then
   echo 'Face Authentication is already installed. Use ./update instead.' >&2
   exit 1
 fi
-if pacman -Qq | rg -q '^howdy($|-)' && ! pacman -Q omarchy-face-auth-howdy >/dev/null 2>&1; then
+if pacman -Qq | rg -q '^(howdy|omarchy-face-auth-howdy)' && ! pacman -Q omarchy-face-auth-howdy-next >/dev/null 2>&1; then
   echo 'Another Howdy package is installed. Remove or migrate it before installing this plugin.' >&2
   exit 1
 fi
 
 echo 'Installing build, camera, and native-dialog dependencies…'
-omarchy pkg add base-devel boost cmake gtk4-layer-shell inih json-c libevdev meson ninja \
-  opencv pam python-gobject python-opencv python-setuptools v4l-utils
+omarchy pkg add acl base-devel cmake curl gettext gtk4-layer-shell json-c libevdev libinih \
+  opencv pam python-gobject qt6-base v4l-utils yyjson
 
 mapfile -t cameras < <(./scripts/detect-ir-camera)
 (( ${#cameras[@]} > 0 )) || {
@@ -56,22 +56,32 @@ SRCDEST='$package_cache/sources'
 LOGDEST='$package_cache'
 EOF
 
-if ! pacman -Q python-dlib >/dev/null 2>&1; then
-  (cd packaging/python-dlib && makepkg --config "$package_cache/makepkg.conf" --cleanbuild --clean --force --noconfirm)
-  dlib_package=$(find "$package_cache/packages" -maxdepth 1 -type f -name 'python-dlib-*.pkg.tar.zst' -print -quit)
-  [[ -n $dlib_package ]] || { echo 'python-dlib package was not produced.' >&2; exit 1; }
-  sudo pacman -U --needed --noconfirm "$dlib_package"
-fi
-
-if ! pacman -Q omarchy-face-auth-howdy >/dev/null 2>&1; then
+if ! pacman -Q omarchy-face-auth-howdy-next >/dev/null 2>&1; then
   (cd packaging && makepkg --config "$package_cache/makepkg.conf" --cleanbuild --clean --force --noconfirm)
-  howdy_package=$(find "$package_cache/packages" -maxdepth 1 -type f -name 'omarchy-face-auth-howdy-*.pkg.tar.zst' -print -quit)
+  howdy_package=$(find "$package_cache/packages" -maxdepth 1 -type f -name 'omarchy-face-auth-howdy-next-*.pkg.tar.zst' -print -quit)
   [[ -n $howdy_package ]] || { echo 'Howdy package was not produced.' >&2; exit 1; }
   sudo pacman -U --needed --noconfirm "$howdy_package"
 fi
 
 ./scripts/build-native
-sudo /usr/bin/bash ./scripts/install-system "$user" "$uid" "$device" "$PWD"
+sudo /usr/bin/install -d -o root -g root -m 0700 /var/lib/omarchy-face-auth
+stage=$(sudo /usr/bin/mktemp -d /var/lib/omarchy-face-auth/stage.XXXXXXXX)
+cleanup_stage() { sudo /usr/bin/rm -rf -- "$stage"; }
+trap cleanup_stage EXIT
+trap 'exit 1' HUP INT TERM
+for directory in native pam scripts build; do
+  sudo /usr/bin/install -d -o root -g root -m 0700 "$stage/$directory"
+done
+for source in native/backend.py native/dialog.py native/io.github.majesticio.face-auth.policy \
+  native/omarchy-face-auth.tmpfiles pam/omarchy-face-password pam/omarchy-face-rescan \
+  pam/omarchy-lock-face pam/sudo.dialog-prefix scripts/configure.py scripts/install-system \
+  scripts/update-system scripts/uninstall-system build/pam_face_intent.so; do
+  sudo /usr/bin/install -o root -g root -m 0600 "$source" "$stage/$source"
+done
+sudo /usr/bin/chmod 0700 "$stage/scripts/install-system"
+sudo /usr/bin/bash "$stage/scripts/install-system" "$user" "$uid" "$device" "$stage"
+cleanup_stage
+trap - EXIT HUP INT TERM
 omarchy-shell shell rescanPlugins >/dev/null
 omarchy plugin enable io.github.majesticio.face-auth --section right
 

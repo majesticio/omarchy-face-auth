@@ -35,6 +35,7 @@ class ConfigurationTests(unittest.TestCase):
         original = '[core]\ndisabled = false\n[video]\ndevice_path = none\n'
         result = configure.howdy_config(original, '/dev/v4l/by-path/camera')
         self.assertIn('disabled = true', result)
+        self.assertIn('no_confirmation = true', result)
         self.assertIn('device_path = /dev/v4l/by-path/camera', result)
         with self.assertRaises(ValueError):
             configure.howdy_config(original, '/tmp/fake-camera')

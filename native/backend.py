@@ -449,7 +449,6 @@ def runtime_lock(name, operation):
 def mutate(user, action, value):
     policy = settings()
     entries = models(user.pw_name)
-    path = MODEL_DIR / (user.pw_name + '.dat')
     if action in ('enable', 'disable', 'screen', 'sudo'):
         if action == 'enable':
             if not entries:
@@ -468,41 +467,35 @@ def mutate(user, action, value):
             raise ValueError('Choose a profile name of 1–24 characters.')
         if len(entries) >= 5:
             raise ValueError('Remove an old profile before adding another (maximum 5).')
-        original = path.read_bytes() if path.exists() else None
-        try:
-            subprocess.run(['/usr/bin/howdy', '-U', user.pw_name, '-y', 'add', value],
-                           env={'PATH': '/usr/bin', 'LANG': 'C.UTF-8'}, cwd='/',
-                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, timeout=25, check=True)
-            os.chown(path, 0, user.pw_gid)
-            os.chmod(path, 0o640)
-            updated = models(user.pw_name)
-            if len(updated) != len(entries) + 1:
-                raise ValueError('Enrollment was not completed.')
-        except BaseException:
-            if original is None:
-                path.unlink(missing_ok=True)
-            else:
-                atomic_write(path, original, 0o640, user.pw_gid)
-            raise
+        subprocess.run(['/usr/bin/howdy', '-U', user.pw_name, '-y', 'add', value],
+                       env={'PATH': '/usr/bin', 'LANG': 'C.UTF-8'}, cwd='/',
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=25, check=True)
+        updated = models(user.pw_name)
+        if len(updated) != len(entries) + 1:
+            raise ValueError('Enrollment was not completed.')
         return 'Face profile enrolled. Your enable/disable setting was retained.'
     if action == 'remove':
         if type(value) is not int or not any(row['id'] == value for row in entries):
             raise ValueError('That profile no longer exists.')
-        entries = [row for row in entries if row['id'] != value]
+        subprocess.run(['/usr/bin/howdy', '-U', user.pw_name, '-y', 'remove', str(value)],
+                       env={'PATH': '/usr/bin', 'LANG': 'C.UTF-8'}, cwd='/',
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=10, check=True)
     elif action == 'clear':
         if value != 'CLEAR':
             raise ValueError('Clear all profiles was not confirmed.')
-        entries = []
+        subprocess.run(['/usr/bin/howdy', '-U', user.pw_name, '-y', 'clear'],
+                       env={'PATH': '/usr/bin', 'LANG': 'C.UTF-8'}, cwd='/',
+                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=10, check=True)
     else:
         raise ValueError('Unsupported action')
-    if not entries:
+    remaining = models(user.pw_name)
+    if not remaining:
         policy['enabled'] = False
         set_policy(policy)
-        path.unlink(missing_ok=True)
-    else:
-        atomic_write(path, json.dumps(entries).encode(), 0o640, user.pw_gid)
-    return 'Profile removed.' if entries else 'All profiles removed. Face authentication is off.'
+    return 'Profile removed.' if remaining else 'All profiles removed. Face authentication is off.'
 
 
 def manage(uid):

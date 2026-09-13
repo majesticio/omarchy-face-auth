@@ -3,7 +3,26 @@ set -euo pipefail
 cd -- "$(dirname -- "$(readlink -f -- "$0")")"
 [[ $EUID != 0 ]] || { echo 'Run this updater as your normal desktop user.' >&2; exit 1; }
 omarchy plugin validate .
+pacman -Q omarchy-face-auth-howdy-next >/dev/null 2>&1 || {
+  echo 'This update moves to howdy-next and needs fresh enrollment.' >&2
+  echo 'Follow the v0.4 migration steps in README.md from an unlocked terminal.' >&2
+  exit 1
+}
 ./scripts/build-native
-sudo /usr/bin/bash ./scripts/update-system "$(id -un)" "$(id -u)" "$PWD"
+sudo /usr/bin/install -d -o root -g root -m 0700 /var/lib/omarchy-face-auth
+stage=$(sudo /usr/bin/mktemp -d /var/lib/omarchy-face-auth/stage.XXXXXXXX)
+cleanup_stage() { sudo /usr/bin/rm -rf -- "$stage"; }
+trap cleanup_stage EXIT
+trap 'exit 1' HUP INT TERM
+for directory in native scripts build; do
+  sudo /usr/bin/install -d -o root -g root -m 0700 "$stage/$directory"
+done
+for source in native/backend.py native/dialog.py scripts/configure.py scripts/update-system \
+  scripts/uninstall-system build/pam_face_intent.so; do
+  sudo /usr/bin/install -o root -g root -m 0600 "$source" "$stage/$source"
+done
+sudo /usr/lib/omarchy-face-auth/update-system "$(id -un)" "$(id -u)" "$stage"
+cleanup_stage
+trap - EXIT HUP INT TERM
 omarchy-shell shell rescanPlugins >/dev/null
 echo 'Face Authentication was updated. Profiles and preferences were retained.'

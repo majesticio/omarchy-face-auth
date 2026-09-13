@@ -18,6 +18,11 @@ anti-spoofing. Use the password path for sensitive or unexpected requests.
 - Settings, PAM configuration, Howdy configuration, models, and runtime locks
   must be bounded regular files owned by root and not writable by group or other.
   Symlinks and malformed metadata fail closed.
+- Privileged installation and updates execute only root-owned staged or already
+  installed scripts. Every staged input is checked again before it is installed.
+- howdy-next's small setuid helper stages only validated configuration and model
+  inputs for the unprivileged recognition process; its pinned upstream test suite
+  is run when the package is built.
 - Screen unlock begins only after the compositor reports a secure session-lock
   surface. A successful screen scan unlocks directly; sudo always shows the
   command-specific approval overlay.

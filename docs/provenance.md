@@ -4,16 +4,19 @@ The dependency recipes fetch immutable upstream archives and verify SHA-256:
 
 | Source | Revision | SHA-256 |
 | --- | --- | --- |
-| Howdy | `d3ab99382f88f043d15f15c1450ab69433892a1c` | `e0b58928c6d1362ea8c630f056261bccb446fe84b507f7b7cceb7c5a55706061` |
-| dlib | `v20.0.1` | `dab5b4ec4b68bd7dc128a1fb7900723f89d2da107e44cd5def7d38fc57252a9d` |
-| dlib recognition model | upstream file | `abb1f61041e434465855ce81c2bd546e830d28bcbed8d27ffbe5bb408b11553a` |
-| dlib landmark model | upstream file | `6e787bbebf5c9efdb793f6cd1f023230c4413306605f24f299f12869f95aa472` |
+| howdy-next 3.4.0 | `b0b3d290cbd38a0a44f6bf0a37b414210acf8276` | `8454f74ae48f3284b25b74c16ab6f9806ba2b8b1857a6c5f740c8c62b24937fd` |
+| YuNet detector | OpenCV Zoo `26cc381e4d2594bb9f47a26eb8fd96c94a13660d` | `ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0` |
+| SFace recognizer | OpenCV Zoo `088c3571ec70df15100a5e4c26894d95951e92e9` | `2b0e941e6f16cc048c20aee0c8e31f569118f65d702914540f7bfdc14048d78a` |
 
-The dlib recipe uses a CPU-only build and limits compilation to two jobs. Howdy is
-packaged without its PAM policy or GTK manager because this plugin owns those
-interfaces. No fetched source or binary archive is committed to the repository.
+The package uses howdy-next's native C++23 PAM and CLI implementation. Both ONNX
+models are installed by the package, so authentication and enrollment never
+download code or model data. Build parallelism is limited to two jobs. No fetched
+source or binary archive is committed to the repository.
 
 `plugin/Service.qml` and `plugin/LockView.qml` derive from Omarchy's MIT-licensed
 lock plugin. The manifest declares `omarchy.clonedFrom: omarchy.lock`, allowing
 the host to grant the same authentication capability while retaining stock
 password and fingerprint behavior.
+
+`patches/UPSTREAM_SHA256` records the exact stock Omarchy lock files used for
+the clone. `patches/face-lock.patch` contains only this plugin's integration.

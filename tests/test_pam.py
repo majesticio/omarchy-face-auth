@@ -10,6 +10,17 @@ RUNNER = ROOT / 'build/pam_runner'
 
 
 class PamTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        # Linux-PAM 1.7.2 rejects non-root confdir trees. Keep this suite
+        # host-independent instead of weakening ownership or touching /etc.
+        with tempfile.TemporaryDirectory() as tmp:
+            pathlib.Path(tmp, 'probe').write_text('auth required pam_permit.so\n')
+            result = subprocess.run([str(RUNNER), tmp, 'probe', '', '', '', '0'],
+                                    capture_output=True, text=True)
+        if 'result:4' in result.stdout:
+            raise unittest.SkipTest('host PAM rejects unprivileged private configuration trees')
+
     def run_stack(self, stack, answer='yes', password='', service='sudo', rhost='', delay=0):
         with tempfile.TemporaryDirectory() as tmp:
             pathlib.Path(tmp, service).write_text(stack)

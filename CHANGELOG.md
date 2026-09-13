@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — 2026-09-12
+
+- Replace classic Python/dlib Howdy with commit-pinned howdy-next 3.4.0 and
+  checksum-pinned YuNet/SFace models, removing the long local dlib build.
+- Delegate profile removal and clearing to howdy-next's locked, atomic storage.
+- Stage privileged installer inputs under a private root-owned directory and
+  validate every file before execution.
+- Add a reproducible patch and rollback-safe resync workflow for the Omarchy lock
+  clone.
+- Move the filled approval highlight with left/right keyboard selection.
+- Document the one-time re-enrollment required by the new embedding format.
+
 ## 0.4.0 — 2026-09-12
 
 - Replace laptop, username, UID, group, path, and camera assumptions with verified

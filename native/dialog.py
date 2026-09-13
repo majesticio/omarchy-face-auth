@@ -262,6 +262,14 @@ class FaceApplication(Adw.Application):
         self.hint = self.label('Enter: Allow once · ←/→: select · Escape: Deny', 'dim-label')
         self.main.append(self.hint)
 
+    def select_approval(self, action):
+        self.selected = action
+        self.allow.remove_css_class('suggested-action')
+        self.deny.remove_css_class('suggested-action')
+        button = self.deny if action == 'deny' else self.allow
+        button.add_css_class('suggested-action')
+        button.grab_focus()
+
     def choose(self, action):
         if action == 'allow' and (not self.ready or self.busy or time.monotonic() >= self.deadline):
             return
@@ -430,10 +438,9 @@ class FaceApplication(Adw.Application):
             self.allow.set_sensitive(self.ready)
             self.rescan.set_sensitive(True)
             self.use_password.set_sensitive(True)
-            self.selected = 'allow'
             self.window.set_default_widget(self.allow)
             if self.ready:
-                self.allow.grab_focus()
+                self.select_approval('allow')
         elif event == 'expired':
             self.expire()
         elif event == 'password':
@@ -492,8 +499,7 @@ class FaceApplication(Adw.Application):
         if self.pages.get_visible_child_name() == 'password':
             return False
         if self.mode == 'approve' and key in (Gdk.KEY_Left, Gdk.KEY_Right):
-            self.selected = 'deny' if self.selected == 'allow' else 'allow'
-            (self.deny if self.selected == 'deny' else self.allow).grab_focus()
+            self.select_approval('deny' if self.selected == 'allow' else 'allow')
             return True
         if self.mode == 'approve' and key in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
             if not self.return_down:

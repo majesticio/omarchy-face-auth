@@ -44,6 +44,8 @@ def worker(mode):
                 assert app.password_entry.get_text() == ''
                 app.event(dict(event='verified', remaining=30))
                 app.key_pressed(None, ui.Gdk.KEY_Left, 0, 0)
+                assert app.deny.has_css_class('suggested-action')
+                assert not app.allow.has_css_class('suggested-action')
                 app.key_pressed(None, ui.Gdk.KEY_Return, 0, 0)
                 assert sent[-1] == dict(action='deny')
                 assert ui.visible_text('a\n\u202eb') == 'a\\u000a\\u202eb'
@@ -67,14 +69,18 @@ def worker(mode):
 if len(sys.argv) == 3 and sys.argv[1] == 'worker':
     worker(sys.argv[2])
 else:
-    server = subprocess.Popen(['/usr/bin/gtk4-broadwayd', '-a', '127.0.0.1', '-p', '8100', ':20'],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    try:
-        time.sleep(.2)
-        env = dict(os.environ, GDK_BACKEND='broadway', BROADWAY_DISPLAY=':20')
-        for mode in ('approve', 'manage'):
-            subprocess.run(['/usr/bin/python3', str(Path(__file__).resolve()), 'worker', mode],
-                           env=env, check=True, timeout=10)
-    finally:
-        server.terminate()
-        server.wait(timeout=3)
+    import tempfile
+    with tempfile.TemporaryDirectory() as runtime:
+        env = dict(os.environ, XDG_RUNTIME_DIR=runtime, GDK_BACKEND='broadway',
+                   BROADWAY_DISPLAY=':20', GSETTINGS_BACKEND='memory')
+        server = subprocess.Popen(
+            ['/usr/bin/gtk4-broadwayd', '-a', '127.0.0.1', '-p', '8100', ':20'],
+            env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            time.sleep(.2)
+            for mode in ('approve', 'manage'):
+                subprocess.run(['/usr/bin/python3', str(Path(__file__).resolve()), 'worker', mode],
+                               env=env, check=True, timeout=10)
+        finally:
+            server.terminate()
+            server.wait(timeout=3)

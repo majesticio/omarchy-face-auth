@@ -1,0 +1,270 @@
+--- a/plugin/Service.qml
++++ b/plugin/Service.qml
+@@ -4,6 +4,7 @@
+ import Quickshell.Services.Pam
+ import Quickshell.Wayland
+ import qs.Commons
++import "." as FaceComponents
+ 
+ Item {
+   id: root
+@@ -22,6 +23,9 @@
+   property bool fingerprintAuthenticating: false
+   property bool passwordPamConfigured: false
+   property bool fingerprintConfigured: false
++  property bool facePamAvailable: false
++  property bool facePolicyEnabled: false
++  readonly property bool faceConfigured: facePamAvailable && facePolicyEnabled
+   property bool previewVisible: false
+   property string enteredPassword: ""
+   property string pendingPassword: ""
+@@ -30,12 +34,13 @@
+   property string backgroundPath: ""
+   property int backgroundVersion: 0
+   property string lastEvent: "init"
++  property string lastUnlockMethod: ""
+   property string lastEventAt: ""
+   property bool strandedLock: false
+   property bool strandedLockResolved: false
+ 
+   readonly property bool locked: lockRequested || sessionLock.locked || sessionLock.secure
+-  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating
++  readonly property bool authenticating: authenticatingPassword || fingerprintAuthenticating || faceAuth.busy
+ 
+   function realScreenCount() {
+     var screens = Quickshell.screens || []
+@@ -114,6 +119,7 @@
+   }
+ 
+   function resetAuthenticationState() {
++    faceAuth.cancel()
+     enteredPassword = ""
+     pendingPassword = ""
+     failureMessage = ""
+@@ -126,6 +132,7 @@
+   }
+ 
+   function beginLock() {
++    lastUnlockMethod = ""
+     if (!passwordPamConfigured) {
+       logEvent("lock-denied: missing-pam")
+       return false
+@@ -145,9 +152,10 @@
+     return true
+   }
+ 
+-  function finishUnlock() {
++  function finishUnlock(method) {
+     if (!root.locked && !lockRequested) return
+ 
++    lastUnlockMethod = String(method || "")
+     lockRequested = false
+     pendingSessionLock = false
+     sessionLockStabilizeTimer.stop()
+@@ -178,6 +186,7 @@
+     if (!lockRequested || authenticatingPassword || password.length === 0) return
+ 
+     runWake()
++    faceAuth.cancel()
+     pendingPassword = password
+     failureMessage = ""
+     authenticatingPassword = true
+@@ -221,7 +230,7 @@
+ 
+     if (!lockRequested) return
+     if (result === PamResult.Success) {
+-      finishUnlock()
++      finishUnlock("fingerprint")
+     } else if (fingerprintConfigured) {
+       fingerprintRetryTimer.restart()
+     }
+@@ -265,11 +274,15 @@
+       id: lockSurface
+       color: Color.background
+ 
+-      LockView {
++      FaceComponents.LockView {
+         id: lockView
+         anchors.fill: parent
+         backgroundPath: root.backgroundPath
+         backgroundVersion: root.backgroundVersion
++        faceConfigured: root.faceConfigured
++        faceBusy: faceAuth.busy
++        onStartFaceRequested: { root.failureMessage = ""; root.runWake(); faceAuth.start() }
++        onCancelFaceRequested: faceAuth.cancel()
+         fingerprintConfigured: root.fingerprintConfigured
+         authenticatingPassword: root.authenticatingPassword
+         failureMessage: root.failureMessage
+@@ -277,7 +290,7 @@
+         inputEnabled: root.lockRequested
+         loadBackground: root.locked
+         passwordText: root.enteredPassword
+-        onPasswordTextEdited: function(password) { root.enteredPassword = password }
++        onPasswordTextEdited: function(password) { root.enteredPassword = password; if (password.length > 0) faceAuth.cancel() }
+         onSubmitPassword: function(password) { root.submitPassword(password) }
+         onClearFailureRequested: root.failureMessage = ""
+         onWakeRequested: root.runWake()
+@@ -296,7 +309,7 @@
+     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+     exclusionMode: ExclusionMode.Ignore
+ 
+-    LockView {
++    FaceComponents.LockView {
+       anchors.fill: parent
+       backgroundPath: root.backgroundPath
+       backgroundVersion: root.backgroundVersion
+@@ -316,6 +329,41 @@
+     }
+   }
+ 
++  FaceComponents.FaceAuth {
++    id: faceAuth
++    userName: root.userName
++    allowed: root.lockRequested && sessionLock.secure && root.faceConfigured && !root.authenticatingPassword
++    onAuthenticated: root.finishUnlock("face")
++    onFailed: function(reason) { if (root.lockRequested) root.failureMessage = reason }
++    onBusyChanged: {
++      if (!root.lockRequested) return
++      if (busy) idleBlankTimer.stop()
++      else root.armBlankTimer()
++    }
++  }
++
++  FileView {
++    path: "/etc/pam.d/omarchy-lock-face"
++    watchChanges: true
++    printErrors: false
++    onLoaded: root.facePamAvailable = true
++    onLoadFailed: root.facePamAvailable = false
++    onFileChanged: reload()
++  }
++
++  FileView {
++    path: "/etc/omarchy-face-auth/settings.json"
++    watchChanges: true
++    printErrors: false
++    onLoaded: {
++      try { var policy = JSON.parse(text()); root.facePolicyEnabled = policy.enabled === true && policy.screen === true }
++      catch (e) { root.facePolicyEnabled = false }
++      if (!root.faceConfigured) faceAuth.cancel()
++    }
++    onLoadFailed: { root.facePolicyEnabled = false; faceAuth.cancel() }
++    onFileChanged: reload()
++  }
++
+   PamContext {
+     id: passwordPam
+     config: "omarchy-lock-password"
+@@ -329,7 +377,7 @@
+       root.pendingPassword = ""
+ 
+       if (!root.lockRequested) return
+-      if (result === PamResult.Success) root.finishUnlock()
++      if (result === PamResult.Success) root.finishUnlock("password")
+       else root.handlePasswordFailure()
+     }
+ 
+@@ -362,7 +410,7 @@
+ 
+   Process {
+     id: readlinkProc
+-    command: ["readlink", "-f", root.currentBackgroundLink]
++    command: ["/usr/bin/readlink", "-f", root.currentBackgroundLink]
+     stdout: StdioCollector {
+       waitForEnd: true
+       onStreamFinished: {
+@@ -427,7 +475,7 @@
+       // Only a password check in flight should hold the display up. The
+       // fingerprint PAM stays armed for the whole lock, so gating on
+       // `authenticating` here would keep the panel lit until unlock.
+-      if (root.lockRequested && !root.authenticatingPassword) root.runBlank()
++      if (root.lockRequested && !root.authenticatingPassword && !faceAuth.busy) root.runBlank()
+     }
+   }
+ 
+@@ -530,6 +578,10 @@
+         realScreens: root.realScreenCount(),
+         passwordPam: root.passwordPamConfigured,
+         fingerprint: root.fingerprintConfigured,
++        face: root.faceConfigured,
++        facePhase: faceAuth.phase,
++        faceConfirmationRequired: false,
++        lastUnlockMethod: root.lastUnlockMethod,
+         authenticating: root.authenticating,
+         lastEvent: root.lastEvent,
+         lastEventAt: root.lastEventAt
+--- a/plugin/LockView.qml
++++ b/plugin/LockView.qml
+@@ -9,6 +9,8 @@
+   property string backgroundPath: ""
+   property int backgroundVersion: 0
+   property bool fingerprintConfigured: false
++  property bool faceConfigured: false
++  property bool faceBusy: false
+   property bool authenticatingPassword: false
+   property string failureMessage: ""
+   property int failedAttempts: 0
+@@ -38,6 +40,8 @@
+     ? Border.surfaceSpec("lock", "border-error", Color.lock.borderError, root.outlineThickness, "border-alpha")
+     : Border.surfaceSpec("lock", "border-active", Color.lock.borderActive, root.outlineThickness, "border-alpha")
+ 
++  signal startFaceRequested()
++  signal cancelFaceRequested()
+   signal submitPassword(string password)
+   signal passwordTextEdited(string password)
+   signal clearFailureRequested()
+@@ -119,6 +123,38 @@
+       onPositionChanged: root.wakeRequested()
+     }
+ 
++    Rectangle {
++      anchors.top: inputField.bottom
++      anchors.topMargin: 20
++      anchors.horizontalCenter: parent.horizontalCenter
++      width: root.fieldWidth
++      height: 52
++      radius: Style.cornerRadius
++      color: Color.lock.background
++      border.width: 1
++      border.color: Color.lock.borderActive
++      visible: root.faceConfigured
++      opacity: root.inputEnabled && !root.authenticatingPassword ? 1 : 0.5
++
++      Text {
++        anchors.centerIn: parent
++        textFormat: Text.PlainText
++        text: root.faceBusy ? "Scanning… · F8 to cancel" : "Unlock with face · F8"
++        color: Color.lock.text
++        font.family: Style.font.family
++        font.pixelSize: Style.font.body
++      }
++      MouseArea {
++        anchors.fill: parent
++        enabled: root.inputEnabled && !root.authenticatingPassword
++        onClicked: {
++          root.wakeRequested()
++          if (root.faceBusy) root.cancelFaceRequested()
++          else root.startFaceRequested()
++        }
++      }
++    }
++
+     BorderSurface {
+       id: inputField
+       width: root.fieldWidth
+@@ -176,6 +212,15 @@
+ 
+         Keys.onPressed: function(event) {
+           root.wakeRequested()
++          if (root.faceConfigured && !event.isAutoRepeat && event.modifiers === Qt.NoModifier) {
++            if (event.key === Qt.Key_F8) {
++              if (root.faceBusy) root.cancelFaceRequested()
++              else root.startFaceRequested()
++              event.accepted = true
++              return
++            }
++          }
++          if (event.key === Qt.Key_Escape) root.cancelFaceRequested()
+           if (event.key === Qt.Key_Escape || (event.modifiers & Qt.ControlModifier && event.key === Qt.Key_U)) {
+             root.passwordTextEdited("")
+             event.accepted = true

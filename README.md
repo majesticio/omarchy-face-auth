@@ -16,7 +16,6 @@ login and disk unlock are outside this release.
 - Omarchy 4 (Quattro), x86-64
 - A dedicated V4L2 IR camera node that exposes only greyscale formats
 - An active local Wayland session
-- About 15–30 minutes for the first CPU-only dlib build
 
 The detector intentionally rejects RGB and mixed-format camera nodes. See
 [compatibility](docs/compatibility.md) before installing on unfamiliar hardware.
@@ -35,10 +34,11 @@ Choose **No** if the add command offers to enable the plugin before installation
 the installer enables it after the system components are ready.
 
 The installer shows the detected IR path, installs Arch build/runtime packages,
-builds pinned Howdy and CPU-only dlib packages, enrolls one profile, installs the
-root-owned PAM/sudo integration transactionally, and enables the combined lock
-service and bar widget. It asks before camera enrollment and uses normal sudo
-password prompts. Close other camera applications during enrollment.
+builds a commit-pinned howdy-next package with checksum-pinned OpenCV models,
+enrolls one profile, installs the root-owned PAM/sudo integration
+transactionally, and enables the combined lock service and bar widget. It asks
+before camera enrollment and uses normal sudo password prompts. Close other
+camera applications during enrollment.
 
 ## Use
 
@@ -62,6 +62,19 @@ cd ~/.config/omarchy/plugins/io.github.majesticio.face-auth
 ./update
 ```
 
+Version 0.5 replaces classic Howdy/dlib with howdy-next. Existing embeddings are
+incompatible, so migrate once from an unlocked terminal and enroll again:
+
+```bash
+sudo howdy -U "$USER" -y clear
+./uninstall
+omarchy pkg drop omarchy-face-auth-howdy python-dlib
+./install
+```
+
+Review the prompts carefully: this intentionally removes the old embeddings
+before the new enrollment. Later 0.5 updates use `./update` normally.
+
 From an unlocked desktop terminal, restore the saved PAM, sudo, and Howdy
 configuration before removing the plugin:
 
@@ -72,7 +85,8 @@ omarchy plugin remove io.github.majesticio.face-auth
 ```
 
 The uninstaller retains face models and packages. After restoration, they can be
-removed explicitly with `omarchy pkg drop omarchy-face-auth-howdy python-dlib`.
+removed explicitly with `sudo howdy -U "$USER" -y clear` and
+`omarchy pkg drop omarchy-face-auth-howdy-next`.
 
 ## Security and privacy
 
@@ -98,6 +112,10 @@ profiles. It does not open a camera, change host authentication, or lock the
 session. `native/` contains the root controller, GTK overlay, and sudo DSO;
 `plugin/` contains the Omarchy lock clone; `widget/` contains the bar panel;
 `packaging/` contains reproducible dependency recipes.
+
+When Omarchy changes its stock lock plugin, maintainers can run
+`./scripts/resync-lock`. It reapplies `patches/face-lock.patch` to the current
+stock files, runs validation, and restores the previous clone if anything fails.
 
 Licensed under MIT. The Omarchy-derived lock files and external dependencies are
 identified in [NOTICE](NOTICE) and [source provenance](docs/provenance.md).

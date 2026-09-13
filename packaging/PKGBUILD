@@ -1,46 +1,51 @@
-# Pinned recognition backend. PAM policy is installed separately by this plugin.
-pkgname=omarchy-face-auth-howdy
-pkgver=0.1.0
+# Native, reproducible recognition backend. PAM policy is owned by this plugin.
+pkgname=omarchy-face-auth-howdy-next
+pkgver=3.4.0
 pkgrel=1
-pkgdesc='Pinned Howdy backend for the Omarchy face authentication plugin'
+pkgdesc='Pinned howdy-next backend for the Omarchy face authentication plugin'
 arch=('x86_64')
-url='https://github.com/boltgolt/howdy'
-license=('MIT')
-depends=('libinih' 'libevdev' 'python' 'python-dlib' 'python-opencv' 'pam')
-makedepends=('meson' 'ninja')
+url='https://codeberg.org/nathawat/howdy-next'
+license=('GPL-3.0-or-later')
+depends=('acl' 'curl>=7.85.0' 'glibc>=2.34' 'libevdev' 'libinih>=59'
+         'openssl' 'opencv>=5.0.0' 'pam' 'qt6-base' 'yyjson>=0.12.0')
+makedepends=('cmake>=3.31' 'gettext')
+optdepends=('linux-enable-ir-emitter: enable IR cameras that need a software emitter')
 provides=('howdy')
-conflicts=('howdy' 'howdy-git')
+conflicts=('howdy' 'howdy-git' 'howdy-next' 'howdy-next-git' 'omarchy-face-auth-howdy')
 backup=('etc/howdy/config.ini')
 options=('!debug')
-howdy_commit=d3ab99382f88f043d15f15c1450ab69433892a1c
+
+_commit=b0b3d290cbd38a0a44f6bf0a37b414210acf8276
 source=(
-  "howdy-$howdy_commit.tar.gz::https://github.com/boltgolt/howdy/archive/$howdy_commit.tar.gz"
-  'https://dlib.net/files/dlib_face_recognition_resnet_model_v1.dat.bz2'
-  'https://dlib.net/files/shape_predictor_5_face_landmarks.dat.bz2'
-  'config.ini'
+  "howdy-next-$_commit.tar.gz::https://codeberg.org/nathawat/howdy-next/archive/$_commit.tar.gz"
+  'face_detection_yunet_2026may.onnx::https://github.com/opencv/opencv_zoo/raw/26cc381e4d2594bb9f47a26eb8fd96c94a13660d/models/face_detection_yunet/face_detection_yunet_2026may.onnx'
+  'face_recognition_sface_2021dec_int8.onnx::https://github.com/opencv/opencv_zoo/raw/088c3571ec70df15100a5e4c26894d95951e92e9/models/face_recognition_sface/face_recognition_sface_2021dec_int8.onnx'
 )
 sha256sums=(
-  'e0b58928c6d1362ea8c630f056261bccb446fe84b507f7b7cceb7c5a55706061'
-  'abb1f61041e434465855ce81c2bd546e830d28bcbed8d27ffbe5bb408b11553a'
-  '6e787bbebf5c9efdb793f6cd1f023230c4413306605f24f299f12869f95aa472'
-  'd5de065492a16bd8a49f88d2f12be93dcb53ed7d22b4fb52bc85dc4270def0e1'
+  '8454f74ae48f3284b25b74c16ab6f9806ba2b8b1857a6c5f740c8c62b24937fd'
+  'ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0'
+  '2b0e941e6f16cc048c20aee0c8e31f569118f65d702914540f7bfdc14048d78a'
 )
 
 build() {
-  meson setup "howdy-$howdy_commit" build --prefix=/usr --libdir=lib --sysconfdir=/etc \
-    --buildtype=release -Dpy_sources_dir=/usr/lib \
-    -Dwith_polkit=false -Dinstall_pam_config=false
-  meson compile -C build -j 2
+  cmake -S howdy-next -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DCMAKE_INSTALL_LIBDIR=lib \
+    -DCMAKE_INSTALL_LIBEXECDIR=lib \
+    -DHOWDY_GIT_COMMIT="$_commit" \
+    -DHOWDY_LICENSES_INSTALL_DIR="share/licenses/$pkgname"
+  cmake --build build -j 2
+}
+
+check() {
+  ctest --test-dir build --output-on-failure
 }
 
 package() {
-  meson install -C build --destdir "$pkgdir" \
-    --tags pam_module,py_sources,bin,bash_completion
-  # Omarchy owns the interface; do not install a second authentication UI.
-  rm -f "$pkgdir/usr/bin/howdy-gtk"
-  rm -rf "$pkgdir/usr/lib/howdy-gtk"
-  install -Dm644 config.ini "$pkgdir/etc/howdy/config.ini"
-  install -Dm644 "howdy-$howdy_commit/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-  install -Dm644 dlib_face_recognition_resnet_model_v1.dat "$pkgdir/usr/share/dlib-data/dlib_face_recognition_resnet_model_v1.dat"
-  install -Dm644 shape_predictor_5_face_landmarks.dat "$pkgdir/usr/share/dlib-data/shape_predictor_5_face_landmarks.dat"
+  DESTDIR="$pkgdir" cmake --install build
+  install -Dm644 face_detection_yunet_2026may.onnx \
+    "$pkgdir/usr/share/howdy/models/face_detection_yunet_2026may.onnx"
+  install -Dm644 face_recognition_sface_2021dec_int8.onnx \
+    "$pkgdir/usr/share/howdy/models/face_recognition_sface_2021dec_int8.onnx"
 }

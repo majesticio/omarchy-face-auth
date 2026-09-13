@@ -129,21 +129,41 @@ class ProfileTests(unittest.TestCase):
         self.assertIn('disabled = true', self.config.read_text())
 
     def test_remove_one_retains_other_profile(self):
-        backend.mutate(self.user, 'remove', 1)
+        def remove(*args, **kwargs):
+            self.profile.write_text(json.dumps([dict(id=2, label='Fixture B')]))
+            return Mock(returncode=0)
+        with patch.object(backend.subprocess, 'run', side_effect=remove) as command:
+            backend.mutate(self.user, 'remove', 1)
+        self.assertEqual(command.call_args.args[0],
+                         ['/usr/bin/howdy', '-U', 'test-user', '-y', 'remove', '1'])
         self.assertEqual([row['id'] for row in backend.models('test-user')], [2])
         self.assertTrue(backend.settings()['enabled'])
 
     def test_remove_last_disables_recognition(self):
-        backend.mutate(self.user, 'remove', 1)
-        backend.mutate(self.user, 'remove', 2)
-        self.assertFalse(self.profile.exists())
+        def remove(*args, **kwargs):
+            identifier = int(args[0][-1])
+            remaining = [row for row in backend.models('test-user') if row['id'] != identifier]
+            if remaining:
+                self.profile.write_text(json.dumps(remaining))
+            else:
+                self.profile.unlink()
+            return Mock(returncode=0)
+        with patch.object(backend.subprocess, 'run', side_effect=remove):
+            backend.mutate(self.user, 'remove', 1)
+            backend.mutate(self.user, 'remove', 2)
         self.assertFalse(backend.settings()['enabled'])
 
     def test_clearing_requires_explicit_confirmation(self):
         with self.assertRaises(ValueError):
             backend.mutate(self.user, 'clear', '')
         self.assertTrue(self.profile.exists())
-        backend.mutate(self.user, 'clear', 'CLEAR')
+        def clear(*args, **kwargs):
+            self.profile.unlink()
+            return Mock(returncode=0)
+        with patch.object(backend.subprocess, 'run', side_effect=clear) as command:
+            backend.mutate(self.user, 'clear', 'CLEAR')
+        self.assertEqual(command.call_args.args[0],
+                         ['/usr/bin/howdy', '-U', 'test-user', '-y', 'clear'])
         self.assertFalse(self.profile.exists())
         self.assertFalse(backend.settings()['enabled'])
 
@@ -152,10 +172,9 @@ class ProfileTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             backend.mutate(self.user, 'enable', None)
 
-    def test_failed_enrollment_restores_original_profile(self):
+    def test_failed_enrollment_preserves_upstream_atomic_file(self):
         original = self.profile.read_bytes()
         def fail(*args, **kwargs):
-            self.profile.write_text('partial write')
             raise backend.subprocess.TimeoutExpired('fixture', 25)
         with patch.object(backend.subprocess, 'run', side_effect=fail):
             with self.assertRaises(backend.subprocess.TimeoutExpired):
@@ -220,6 +239,13 @@ class InstallationIdentityTests(unittest.TestCase):
 class RealPamPasswordTests(unittest.TestCase):
     def test_native_password_callback_against_private_pam_stack(self):
         # Exercise real libpam + the compiled fixture, without host PAM changes.
+        with tempfile.TemporaryDirectory() as probe:
+            pathlib.Path(probe, 'probe').write_text('auth required pam_permit.so\n')
+            result = backend.subprocess.run(
+                [str(ROOT / 'build/pam_runner'), probe, 'probe', '', '', '', '0'],
+                capture_output=True, text=True)
+        if 'result:4' in result.stdout:
+            self.skipTest('host PAM rejects unprivileged private configuration trees')
         library_loader = backend.C.CDLL
         pam = library_loader('libpam.so.0')
         pam.pam_start_confdir.argtypes = [backend.C.c_char_p, backend.C.c_char_p,

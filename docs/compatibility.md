@@ -14,6 +14,10 @@ formats on one node, requires a proprietary emitter driver, or exposes no stable
 Linux capture interface. A maintainer can add a reviewed device-specific detector
 later; do not work around the stop by guessing `/dev/videoN`.
 
+Some supported cameras need the optional `linux-enable-ir-emitter` package.
+That driver is intentionally not installed automatically because emitter control
+is hardware-specific.
+
 The RGB and IR interfaces of one physical webcam may be usable simultaneously if
 its firmware and driver support independent streams. Many laptop cameras cannot
 do this reliably. A busy IR node causes face authentication to fail closed and

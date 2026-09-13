@@ -9,7 +9,15 @@ account=pwd.getpwnam(sys.argv[1])
 assert value == {'uid': int(sys.argv[2]), 'user': sys.argv[1]}
 assert account.pw_uid == value['uid']
 PY
-[[ -f $source_root/build/pam_face_intent.so && ! -L $source_root/build/pam_face_intent.so ]] || exit 1
+[[ $source_root == /var/lib/omarchy-face-auth/stage.* && -d $source_root && ! -L $source_root ]] || exit 1
+[[ $(stat -c %u "$source_root") == 0 && $(stat -c %a "$source_root") == 700 ]] || exit 1
+for required in native/backend.py native/dialog.py scripts/configure.py scripts/update-system \
+  scripts/uninstall-system build/pam_face_intent.so; do
+  candidate=$source_root/$required
+  [[ -f $candidate && ! -L $candidate && $(stat -c %u "$candidate") == 0 ]] || exit 1
+  mode=$(stat -c %a "$candidate")
+  (( (8#$mode & 8#022) == 0 )) || exit 1
+done
 recovery=$(mktemp -d /var/lib/omarchy-face-auth/update.XXXXXXXX)
 chmod 0700 "$recovery"
 cp -a /usr/lib/omarchy-face-auth/backend.py "$recovery/backend.py"

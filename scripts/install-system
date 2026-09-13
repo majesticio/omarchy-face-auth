@@ -7,8 +7,8 @@ user=$1 uid=$2 device=$3 source_root=$4
 [[ $uid =~ ^[1-9][0-9]*$ ]] || exit 1
 account=$(getent passwd "$user")
 [[ -n $account && $(cut -d: -f3 <<<"$account") == "$uid" ]] || { echo 'Account identity mismatch.' >&2; exit 1; }
-gid=$(cut -d: -f4 <<<"$account")
-[[ $source_root == /* && -d $source_root && ! -L $source_root ]] || exit 1
+[[ $source_root == /var/lib/omarchy-face-auth/stage.* && -d $source_root && ! -L $source_root ]] || exit 1
+[[ $(stat -c %u "$source_root") == 0 && $(stat -c %a "$source_root") == 700 ]] || exit 1
 [[ $device == /dev/* && -e $device ]] || { echo 'The selected IR camera is unavailable.' >&2; exit 1; }
 resolved_device=$(readlink -f -- "$device")
 [[ -c $resolved_device ]] || { echo 'The selected IR camera is not a video device.' >&2; exit 1; }
@@ -24,9 +24,14 @@ for required in native/backend.py native/dialog.py native/io.github.majesticio.f
   native/omarchy-face-auth.tmpfiles pam/omarchy-face-password pam/omarchy-face-rescan \
   pam/omarchy-lock-face pam/sudo.dialog-prefix scripts/configure.py scripts/update-system \
   scripts/uninstall-system build/pam_face_intent.so; do
-  [[ -f $source_root/$required && ! -L $source_root/$required ]] || { echo "Missing source: $required" >&2; exit 1; }
+  candidate=$source_root/$required
+  [[ -f $candidate && ! -L $candidate && $(stat -c %u "$candidate") == 0 ]] || {
+    echo "Missing or untrusted staged source: $required" >&2; exit 1;
+  }
+  mode=$(stat -c %a "$candidate")
+  (( (8#$mode & 8#022) == 0 )) || { echo "Writable staged source: $required" >&2; exit 1; }
 done
-[[ -x /usr/bin/howdy && -f /etc/howdy/config.ini ]] || { echo 'The pinned Howdy package is not installed.' >&2; exit 1; }
+[[ -x /usr/bin/howdy && -f /etc/howdy/config.ini ]] || { echo 'The pinned howdy-next package is not installed.' >&2; exit 1; }
 for trusted in /etc/pam.d/sudo /etc/howdy/config.ini; do
   [[ -f $trusted && ! -L $trusted && $(stat -c %u "$trusted") == 0 ]] || {
     echo "Refusing untrusted system file: $trusted" >&2; exit 1;
@@ -109,14 +114,13 @@ chmod 0644 /etc/omarchy-face-auth/*.json
 
 /usr/lib/omarchy-face-auth/configure.py howdy "$recovery/howdy.ini" "$recovery/howdy.new" --device "$device"
 install -o root -g root -m 0644 "$recovery/howdy.new" /etc/howdy/config.ini
-install -d -o root -g "$gid" -m 0750 /etc/howdy/models
-
 echo 'Look toward the IR camera to enroll the initial profile.'
 /usr/bin/howdy -U "$user" -y add Initial
 model=/etc/howdy/models/$user.dat
 [[ -s $model && ! -L $model ]] || { echo 'Enrollment did not create a profile.' >&2; exit 1; }
-chown root:"$gid" "$model"
-chmod 0640 "$model"
+[[ $(stat -c %u "$model") == 0 ]] || { echo 'Enrollment created an untrusted profile.' >&2; exit 1; }
+mode=$(stat -c %a "$model")
+(( (8#$mode & 8#022) == 0 )) || { echo 'Enrollment created a writable profile.' >&2; exit 1; }
 
 /usr/lib/omarchy-face-auth/configure.py sudo-pam "$recovery/sudo" "$recovery/sudo.new" \
   --block "$source_root/pam/sudo.dialog-prefix"
