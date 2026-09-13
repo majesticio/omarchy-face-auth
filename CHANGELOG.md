@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.5.1 — 2026-09-13
+
+- Publish a root-owned, nonsecret status summary so the widget remains useful
+  without exposing Howdy configuration or biometric vectors.
+- Replace the multi-prompt updater with one fixed-purpose, root-owned update
+  transaction and include PAM service files in update rollback.
+- Make the native sudo fixture independent of temporary-disk capacity.
+- Document the harmless OpenCV 5.0 graph-engine target warnings.
+
 ## 0.5.0 — 2026-09-12
 
 - Replace classic Python/dlib Howdy with commit-pinned howdy-next 3.4.0 and

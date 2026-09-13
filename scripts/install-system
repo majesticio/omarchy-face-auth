@@ -22,7 +22,7 @@ for target in /etc/omarchy-face-auth /etc/pam.d/omarchy-lock-face \
 done
 for required in native/backend.py native/dialog.py native/io.github.majesticio.face-auth.policy \
   native/omarchy-face-auth.tmpfiles pam/omarchy-face-password pam/omarchy-face-rescan \
-  pam/omarchy-lock-face pam/sudo.dialog-prefix scripts/configure.py scripts/update-system \
+  pam/omarchy-lock-face pam/sudo.dialog-prefix scripts/configure.py scripts/update-launcher scripts/update-system \
   scripts/uninstall-system build/pam_face_intent.so; do
   candidate=$source_root/$required
   [[ -f $candidate && ! -L $candidate && $(stat -c %u "$candidate") == 0 ]] || {
@@ -94,6 +94,7 @@ install -d -o root -g root -m 0755 /usr/lib/omarchy-face-auth /etc/omarchy-face-
 install -o root -g root -m 0755 "$source_root/native/backend.py" /usr/lib/omarchy-face-auth/backend.py
 install -o root -g root -m 0644 "$source_root/native/dialog.py" /usr/lib/omarchy-face-auth/dialog.py
 install -o root -g root -m 0755 "$source_root/scripts/configure.py" /usr/lib/omarchy-face-auth/configure.py
+install -o root -g root -m 0755 "$source_root/scripts/update-launcher" /usr/lib/omarchy-face-auth/update-launcher
 install -o root -g root -m 0755 "$source_root/scripts/update-system" /usr/lib/omarchy-face-auth/update-system
 install -o root -g root -m 0755 "$source_root/scripts/uninstall-system" /usr/lib/omarchy-face-auth/uninstall-system
 install -o root -g root -m 0755 "$source_root/build/pam_face_intent.so" /usr/lib/security/pam_face_intent.so
@@ -144,6 +145,7 @@ Path('/etc/omarchy-face-auth/settings.json').write_text(json.dumps(
     {'enabled': True, 'screen': True, 'sudo': True}, separators=(',', ':')) + '\n')
 PY
 chmod 0644 /etc/howdy/config.ini /etc/omarchy-face-auth/settings.json
+/usr/lib/omarchy-face-auth/backend.py sync-status
 /usr/bin/sudo -n /usr/bin/true
 printf '%s\n' "$recovery" > /var/lib/omarchy-face-auth/active-recovery
 chmod 0600 /var/lib/omarchy-face-auth/active-recovery

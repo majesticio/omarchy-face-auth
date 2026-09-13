@@ -55,25 +55,12 @@ is not changed.
 
 ## Update and remove
 
-After `omarchy plugin update io.github.majesticio.face-auth`, run:
+After `omarchy plugin update io.github.majesticio.face-auth`, run the single-prompt updater:
 
 ```bash
 cd ~/.config/omarchy/plugins/io.github.majesticio.face-auth
 ./update
 ```
-
-Version 0.5 replaces classic Howdy/dlib with howdy-next. Existing embeddings are
-incompatible, so migrate once from an unlocked terminal and enroll again:
-
-```bash
-sudo howdy -U "$USER" -y clear
-./uninstall
-omarchy pkg drop omarchy-face-auth-howdy python-dlib
-./install
-```
-
-Review the prompts carefully: this intentionally removes the old embeddings
-before the new enrollment. Later 0.5 updates use `./update` normally.
 
 From an unlocked desktop terminal, restore the saved PAM, sudo, and Howdy
 configuration before removing the plugin:

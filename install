@@ -74,7 +74,7 @@ for directory in native pam scripts build; do
 done
 for source in native/backend.py native/dialog.py native/io.github.majesticio.face-auth.policy \
   native/omarchy-face-auth.tmpfiles pam/omarchy-face-password pam/omarchy-face-rescan \
-  pam/omarchy-lock-face pam/sudo.dialog-prefix scripts/configure.py scripts/install-system \
+  pam/omarchy-lock-face pam/sudo.dialog-prefix scripts/configure.py scripts/install-system scripts/update-launcher \
   scripts/update-system scripts/uninstall-system build/pam_face_intent.so; do
   sudo /usr/bin/install -o root -g root -m 0600 "$source" "$stage/$source"
 done

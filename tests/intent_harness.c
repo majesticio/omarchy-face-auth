@@ -16,6 +16,7 @@
 #undef setresuid
 #undef setresgid
 #include <assert.h>
+#include <sys/mman.h>
 #include <security/pam_appl.h>
 extern int fstat(int, struct stat *);
 
@@ -25,10 +26,15 @@ static const char *expected_command;
 FILE *fixture_fopen(const char *path, const char *mode) {
     (void)mode;
     assert(!strcmp(path, "/etc/sudo.conf"));
-    FILE *file = tmpfile();
+    int fd = memfd_create("sudo-conf-fixture", MFD_CLOEXEC);
+    assert(fd >= 0);
+    if (configured) {
+        const char line[] = "Plugin face_approval /usr/lib/security/pam_face_intent.so\n";
+        assert(write(fd, line, sizeof(line) - 1) == (ssize_t)(sizeof(line) - 1));
+    }
+    assert(lseek(fd, 0, SEEK_SET) == 0);
+    FILE *file = fdopen(fd, "r");
     assert(file);
-    if (configured) fputs("Plugin face_approval /usr/lib/security/pam_face_intent.so\n", file);
-    rewind(file);
     return file;
 }
 int fixture_fstat(int fd, struct stat *st) {

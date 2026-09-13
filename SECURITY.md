@@ -17,7 +17,8 @@ anti-spoofing. Use the password path for sensitive or unexpected requests.
   every profile or preference mutation.
 - Settings, PAM configuration, Howdy configuration, models, and runtime locks
   must be bounded regular files owned by root and not writable by group or other.
-  Symlinks and malformed metadata fail closed.
+  Symlinks and malformed metadata fail closed. The bar reads only a root-owned
+  status summary; Howdy configuration and biometric vectors remain inaccessible.
 - Privileged installation and updates execute only root-owned staged or already
   installed scripts. Every staged input is checked again before it is installed.
 - howdy-next's small setuid helper stages only validated configuration and model

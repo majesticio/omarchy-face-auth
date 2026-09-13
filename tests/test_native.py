@@ -215,6 +215,35 @@ class ProfileTests(unittest.TestCase):
             pass
 
 
+class PublicStatusTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = pathlib.Path(self.tmp.name) / 'status.json'
+        self.uid = pathlib.Path(self.tmp.name).stat().st_uid
+        for item in [patch.object(backend, 'PUBLIC_STATUS', self.path),
+                     patch.object(backend, 'TRUSTED_UID', self.uid),
+                     patch.object(backend, 'configured_user', return_value=Mock(pw_name='test-user')),
+                     patch.object(backend.os, 'fchown')]:
+            item.start()
+            self.addCleanup(item.stop)
+
+    def test_root_status_publishes_nonsecret_summary(self):
+        expected = {'known': True, 'enabled': True, 'profiles': [{'id': 1, 'label': 'Initial', 'time': 0}]}
+        with patch.object(backend.os, 'geteuid', return_value=0), \
+                patch.object(backend, 'compute_status', return_value=expected):
+            self.assertEqual(backend.status(self.uid), expected)
+        self.assertEqual(json.loads(self.path.read_text()), expected)
+
+    def test_user_status_reads_cache_without_computing_protected_state(self):
+        expected = {'known': True, 'enabled': True, 'profiles': []}
+        self.path.write_text(json.dumps(expected))
+        with patch.object(backend.os, 'geteuid', return_value=self.uid), \
+                patch.object(backend, 'compute_status') as compute:
+            self.assertEqual(backend.status(self.uid), expected)
+            compute.assert_not_called()
+
+
 class InstallationIdentityTests(unittest.TestCase):
     def test_identity_must_match_account_database(self):
         with tempfile.TemporaryDirectory() as tmp:

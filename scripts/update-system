@@ -11,7 +11,8 @@ assert account.pw_uid == value['uid']
 PY
 [[ $source_root == /var/lib/omarchy-face-auth/stage.* && -d $source_root && ! -L $source_root ]] || exit 1
 [[ $(stat -c %u "$source_root") == 0 && $(stat -c %a "$source_root") == 700 ]] || exit 1
-for required in native/backend.py native/dialog.py scripts/configure.py scripts/update-system \
+for required in native/backend.py native/dialog.py pam/omarchy-face-password pam/omarchy-face-rescan \
+  pam/omarchy-lock-face scripts/configure.py scripts/update-launcher scripts/update-system \
   scripts/uninstall-system build/pam_face_intent.so; do
   candidate=$source_root/$required
   [[ -f $candidate && ! -L $candidate && $(stat -c %u "$candidate") == 0 ]] || exit 1
@@ -22,13 +23,28 @@ recovery=$(mktemp -d /var/lib/omarchy-face-auth/update.XXXXXXXX)
 chmod 0700 "$recovery"
 cp -a /usr/lib/omarchy-face-auth/backend.py "$recovery/backend.py"
 cp -a /usr/lib/omarchy-face-auth/dialog.py "$recovery/dialog.py"
+cp -a /usr/lib/omarchy-face-auth/update-launcher "$recovery/update-launcher"
+cp -a /usr/lib/omarchy-face-auth/configure.py "$recovery/configure.py"
+cp -a /usr/lib/omarchy-face-auth/update-system "$recovery/update-system"
+cp -a /usr/lib/omarchy-face-auth/uninstall-system "$recovery/uninstall-system"
+cp -a /etc/pam.d/omarchy-face-password "$recovery/omarchy-face-password"
+cp -a /etc/pam.d/omarchy-face-rescan "$recovery/omarchy-face-rescan"
+cp -a /etc/pam.d/omarchy-lock-face "$recovery/omarchy-lock-face"
 cp -a /usr/lib/security/pam_face_intent.so "$recovery/pam_face_intent.so"
 committed=0
 rollback() {
   if (( ! committed )); then
     install -o root -g root -m 0755 "$recovery/backend.py" /usr/lib/omarchy-face-auth/backend.py
     install -o root -g root -m 0644 "$recovery/dialog.py" /usr/lib/omarchy-face-auth/dialog.py
+    install -o root -g root -m 0755 "$recovery/update-launcher" /usr/lib/omarchy-face-auth/update-launcher
+    install -o root -g root -m 0755 "$recovery/configure.py" /usr/lib/omarchy-face-auth/configure.py
+    install -o root -g root -m 0755 "$recovery/update-system" /usr/lib/omarchy-face-auth/update-system
+    install -o root -g root -m 0755 "$recovery/uninstall-system" /usr/lib/omarchy-face-auth/uninstall-system
+    install -o root -g root -m 0644 "$recovery/omarchy-face-password" /etc/pam.d/omarchy-face-password
+    install -o root -g root -m 0644 "$recovery/omarchy-face-rescan" /etc/pam.d/omarchy-face-rescan
+    install -o root -g root -m 0644 "$recovery/omarchy-lock-face" /etc/pam.d/omarchy-lock-face
     install -o root -g root -m 0755 "$recovery/pam_face_intent.so" /usr/lib/security/pam_face_intent.so
+    /usr/lib/omarchy-face-auth/backend.py sync-status >/dev/null 2>&1 || true
   fi
 }
 trap rollback EXIT
@@ -36,7 +52,12 @@ install -o root -g root -m 0755 "$source_root/native/backend.py" /usr/lib/omarch
 install -o root -g root -m 0644 "$source_root/native/dialog.py" /usr/lib/omarchy-face-auth/dialog.py
 install -o root -g root -m 0755 "$source_root/build/pam_face_intent.so" /usr/lib/security/pam_face_intent.so
 install -o root -g root -m 0755 "$source_root/scripts/configure.py" /usr/lib/omarchy-face-auth/configure.py
+install -o root -g root -m 0755 "$source_root/scripts/update-launcher" /usr/lib/omarchy-face-auth/update-launcher
 install -o root -g root -m 0755 "$source_root/scripts/update-system" /usr/lib/omarchy-face-auth/update-system
 install -o root -g root -m 0755 "$source_root/scripts/uninstall-system" /usr/lib/omarchy-face-auth/uninstall-system
+install -o root -g root -m 0644 "$source_root/pam/omarchy-face-password" /etc/pam.d/omarchy-face-password
+install -o root -g root -m 0644 "$source_root/pam/omarchy-face-rescan" /etc/pam.d/omarchy-face-rescan
+install -o root -g root -m 0644 "$source_root/pam/omarchy-lock-face" /etc/pam.d/omarchy-lock-face
+/usr/lib/omarchy-face-auth/backend.py sync-status
 /usr/bin/sudo -n /usr/bin/true
 committed=1

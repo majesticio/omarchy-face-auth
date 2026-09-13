@@ -9,20 +9,6 @@ pacman -Q omarchy-face-auth-howdy-next >/dev/null 2>&1 || {
   exit 1
 }
 ./scripts/build-native
-sudo /usr/bin/install -d -o root -g root -m 0700 /var/lib/omarchy-face-auth
-stage=$(sudo /usr/bin/mktemp -d /var/lib/omarchy-face-auth/stage.XXXXXXXX)
-cleanup_stage() { sudo /usr/bin/rm -rf -- "$stage"; }
-trap cleanup_stage EXIT
-trap 'exit 1' HUP INT TERM
-for directory in native scripts build; do
-  sudo /usr/bin/install -d -o root -g root -m 0700 "$stage/$directory"
-done
-for source in native/backend.py native/dialog.py scripts/configure.py scripts/update-system \
-  scripts/uninstall-system build/pam_face_intent.so; do
-  sudo /usr/bin/install -o root -g root -m 0600 "$source" "$stage/$source"
-done
-sudo /usr/lib/omarchy-face-auth/update-system "$(id -un)" "$(id -u)" "$stage"
-cleanup_stage
-trap - EXIT HUP INT TERM
+sudo /usr/lib/omarchy-face-auth/update-launcher "$(id -un)" "$(id -u)" "$PWD"
 omarchy-shell shell rescanPlugins >/dev/null
 echo 'Face Authentication was updated. Profiles and preferences were retained.'

@@ -27,6 +27,7 @@ import unicodedata
 BASE = Path('/usr/lib/omarchy-face-auth')
 SETTINGS = Path('/etc/omarchy-face-auth/settings.json')
 INSTALLATION = Path('/etc/omarchy-face-auth/installation.json')
+PUBLIC_STATUS = Path('/etc/omarchy-face-auth/status.json')
 HOWDY = Path('/etc/howdy/config.ini')
 MODEL_DIR = Path('/etc/howdy/models')
 RUNTIME = Path('/run/omarchy-face-auth')
@@ -115,7 +116,7 @@ def models(user):
     return entries
 
 
-def status(uid):
+def compute_status(uid):
     user = configured_user(uid).pw_name
     policy = settings()
     entries = models(user)
@@ -133,6 +134,18 @@ def status(uid):
                 screenPreference=policy['screen'], sudoPreference=policy['sudo'],
                 camera=camera, enrolled=bool(entries), available=camera and bool(entries),
                 profiles=[{k: row.get(k) for k in ('id', 'label', 'time')} for row in entries])
+
+
+def status(uid):
+    configured_user(uid)
+    if os.geteuid() == 0:
+        value = compute_status(uid)
+        atomic_write(PUBLIC_STATUS, (json.dumps(value, separators=(',', ':')) + '\n').encode())
+        return value
+    value = json.loads(trusted_text(PUBLIC_STATUS, MAX_SETTINGS_BYTES))
+    if not isinstance(value, dict) or value.get('known') is not True:
+        raise ValueError('Invalid public status')
+    return value
 
 
 def atomic_write(path, data, mode=0o644, gid=0):
@@ -560,6 +573,10 @@ def main():
         configured_user(uid)
         with runtime_lock('manage.lock', fcntl.LOCK_EX | fcntl.LOCK_NB):
             manage(uid)
+        return 0
+    if mode == 'sync-status':
+        identity = installation()
+        status(identity['uid'])
         return 0
     return 1
 

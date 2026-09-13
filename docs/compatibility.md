@@ -14,6 +14,11 @@ formats on one node, requires a proprietary emitter driver, or exposes no stable
 Linux capture interface. A maintainer can add a reviewed device-specific detector
 later; do not work around the stop by guessing `/dev/videoN`.
 
+OpenCV 5.0 may print `Targets are not supported by the new graph engine for now`
+during recognition. Howdy Next documents this as a harmless upstream warning;
+the OpenCV fix is expected in 5.1. A successful or failed authentication result
+remains authoritative.
+
 Some supported cameras need the optional `linux-enable-ir-emitter` package.
 That driver is intentionally not installed automatically because emitter control
 is hardware-specific.
