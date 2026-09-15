@@ -39,5 +39,5 @@ for relative in "${required[@]}"; do
   install -o root -g root -m 0600 "$source_root/$relative" "$stage/$relative"
 done
 chmod 0700 "$stage/scripts/update-launcher" "$stage/scripts/update-system"
-/usr/lib/omarchy-face-auth/update-system "$user" "$uid" "$stage"
+"$stage/scripts/update-system" "$user" "$uid" "$stage"
 /usr/lib/omarchy-face-auth/backend.py sync-status

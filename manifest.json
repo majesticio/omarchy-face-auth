@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.majesticio.face-auth",
   "name": "Face Authentication",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "author": "majesticio",
   "description": "IR face unlock and command-bound sudo approval with password fallback.",
   "omarchy": {

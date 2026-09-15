@@ -20,6 +20,8 @@ class ReleaseScriptTests(unittest.TestCase):
             self.assertIn(relative, launcher)
             self.assertIn(relative, transaction)
         self.assertIn('backend.py sync-status', transaction)
+        self.assertIn('"$stage/scripts/update-system" "$user" "$uid" "$stage"', launcher)
+        self.assertNotIn('/usr/lib/omarchy-face-auth/update-system "$user"', launcher)
 
     def test_sudo_uses_normal_timestamp_policy_on_install_and_update(self):
         installer = (ROOT / 'scripts/install-system').read_text()

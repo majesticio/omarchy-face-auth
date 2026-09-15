@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.4 — 2026-09-14
+
+- Run the newly staged, root-validated update transaction immediately so
+  updater migrations take effect in one pass instead of the following update.
+
 ## 0.5.3 — 2026-09-14
 
 - Preserve sudo's normal timestamp policy so multi-step workflows such as
