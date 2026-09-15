@@ -10,8 +10,9 @@ anti-spoofing. Use the password path for sensitive or unexpected requests.
   executable and argument vector from sudo after policy evaluation; neither the
   controller nor the dialog executes it.
 - A face result is process-local, expires after 30 seconds, and is consumed by
-  one sudo request. There is no reusable token, public approval socket, or sudo
-  timestamp cache.
+  one sudo request. There is no reusable biometric token or public approval
+  socket. After approval, sudo's normal timestamp policy may authorize later
+  requests without running PAM again, just as it does after password entry.
 - The root controller accepts fixed modes only. It launches the UI as the active
   local user over an inherited socket and requires fresh password-only PAM for
   every profile or preference mutation.

@@ -31,6 +31,10 @@ cp -a /etc/pam.d/omarchy-face-password "$recovery/omarchy-face-password"
 cp -a /etc/pam.d/omarchy-face-rescan "$recovery/omarchy-face-rescan"
 cp -a /etc/pam.d/omarchy-lock-face "$recovery/omarchy-lock-face"
 cp -a /usr/lib/security/pam_face_intent.so "$recovery/pam_face_intent.so"
+cp -a /etc/sudoers.d/90-omarchy-face-auth "$recovery/sudoers"
+printf '# Face authentication follows the normal sudo timestamp policy.\n' > "$recovery/sudoers.new"
+chmod 0440 "$recovery/sudoers.new"
+visudo -cf "$recovery/sudoers.new"
 committed=0
 rollback() {
   if (( ! committed )); then
@@ -44,6 +48,7 @@ rollback() {
     install -o root -g root -m 0644 "$recovery/omarchy-face-rescan" /etc/pam.d/omarchy-face-rescan
     install -o root -g root -m 0644 "$recovery/omarchy-lock-face" /etc/pam.d/omarchy-lock-face
     install -o root -g root -m 0755 "$recovery/pam_face_intent.so" /usr/lib/security/pam_face_intent.so
+    install -o root -g root -m 0440 "$recovery/sudoers" /etc/sudoers.d/90-omarchy-face-auth
     /usr/lib/omarchy-face-auth/backend.py sync-status >/dev/null 2>&1 || true
   fi
 }
@@ -58,6 +63,8 @@ install -o root -g root -m 0755 "$source_root/scripts/uninstall-system" /usr/lib
 install -o root -g root -m 0644 "$source_root/pam/omarchy-face-password" /etc/pam.d/omarchy-face-password
 install -o root -g root -m 0644 "$source_root/pam/omarchy-face-rescan" /etc/pam.d/omarchy-face-rescan
 install -o root -g root -m 0644 "$source_root/pam/omarchy-lock-face" /etc/pam.d/omarchy-lock-face
+install -o root -g root -m 0440 "$recovery/sudoers.new" /etc/sudoers.d/90-omarchy-face-auth
+visudo -c
 /usr/lib/omarchy-face-auth/backend.py sync-status
 /usr/bin/sudo -n /usr/bin/true
 committed=1

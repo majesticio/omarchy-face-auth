@@ -485,7 +485,7 @@ class FaceApplication(Adw.Application):
             if remaining <= 0:
                 self.expire()
             else:
-                self.countdown.set_text(f'Face verification expires in {int(remaining) + 1}s · approval applies only to this request')
+                self.countdown.set_text(f'Face verification expires in {int(remaining) + 1}s · sudo may remember approval afterward')
         return True
 
     def key_pressed(self, controller, key, code, modifiers):

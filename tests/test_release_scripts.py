@@ -21,6 +21,16 @@ class ReleaseScriptTests(unittest.TestCase):
             self.assertIn(relative, transaction)
         self.assertIn('backend.py sync-status', transaction)
 
+    def test_sudo_uses_normal_timestamp_policy_on_install_and_update(self):
+        installer = (ROOT / 'scripts/install-system').read_text()
+        updater = (ROOT / 'scripts/update-system').read_text()
+        self.assertNotIn('timestamp_timeout=0', installer)
+        self.assertNotIn('timestamp_timeout=0', updater)
+        self.assertIn('normal sudo timestamp policy', installer)
+        self.assertIn('normal sudo timestamp policy', updater)
+        self.assertIn('/etc/sudoers.d/90-omarchy-face-auth', updater)
+        self.assertIn('visudo -c', updater)
+
     def test_fresh_install_installs_update_entrypoint(self):
         installer = (ROOT / 'install').read_text()
         transaction = (ROOT / 'scripts/install-system').read_text()

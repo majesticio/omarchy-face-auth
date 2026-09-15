@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3 — 2026-09-14
+
+- Preserve sudo's normal timestamp policy so multi-step workflows such as
+  `omarchy-update` do not require a fresh face scan and approval for every
+  privileged subprocess.
+- Migrate existing installations transactionally and restore the prior policy
+  if a plugin update fails.
+
 ## 0.5.2 — 2026-09-13
 
 - Queue face-unlock requests made during the lock transition and begin scanning

@@ -40,8 +40,8 @@ cat <<'EOF'
 Enrollment will briefly use this camera. Close other camera applications first.
 
 The root transaction will add marked blocks to /etc/pam.d/sudo and /etc/sudo.conf,
-install a dedicated screen PAM service, and disable sudo timestamp caching for
-this account. Exact originals are saved for rollback and removal.
+install a dedicated screen PAM service, and preserve the normal sudo timestamp
+policy. Exact originals are saved for rollback and removal.
 EOF
 read -r -p 'Type INSTALL to build, enroll, and apply these changes: ' answer
 [[ $answer == INSTALL ]] || { echo 'Cancelled.'; exit 1; }

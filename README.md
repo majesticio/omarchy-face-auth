@@ -55,8 +55,9 @@ camera applications during enrollment.
 - Click the face icon in the bar, then **Profiles & settings…** to manage profiles
   or preferences. Every mutation requires a fresh login password.
 
-Face approval applies to one sudo request and expires after 30 seconds. Sudo
-timestamp caching is disabled for the configured user. Existing NOPASSWD policy
+Face approval applies to one sudo request and expires after 30 seconds. After an
+approved request, normal sudo timestamp caching applies; this avoids repeated
+face scans during workflows such as `omarchy-update`. Existing NOPASSWD policy
 is not changed.
 
 ## Update and remove

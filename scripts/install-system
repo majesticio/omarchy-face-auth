@@ -126,7 +126,7 @@ mode=$(stat -c %a "$model")
 /usr/lib/omarchy-face-auth/configure.py sudo-pam "$recovery/sudo" "$recovery/sudo.new" \
   --block "$source_root/pam/sudo.dialog-prefix"
 /usr/lib/omarchy-face-auth/configure.py sudo-conf "$recovery/sudo.conf" "$recovery/sudo.conf.new"
-printf 'Defaults:%s timestamp_timeout=0\n' "$user" > "$recovery/sudoers.new"
+printf '# Face authentication follows the normal sudo timestamp policy.\n' > "$recovery/sudoers.new"
 chmod 0440 "$recovery/sudoers.new"
 visudo -cf "$recovery/sudoers.new"
 install -o root -g root -m 0644 "$recovery/sudo.conf.new" /etc/sudo.conf
